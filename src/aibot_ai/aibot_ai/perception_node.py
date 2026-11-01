@@ -45,7 +45,8 @@ from aibot_msgs.srv import SetHeld, SetPrompts, VlmQuery
 from aibot_teleop.utils.mode_gate import MODE_TOPIC, mode_qos
 
 from .backends.base import BackendError
-from .backends.ollama import OllamaBackend
+from .backends.base import HEAD_CAMERA
+from .backends.factory import build
 from .perception.detectors import ColorBlobDetector, Detector, YoloWorldDetector, nms
 from .perception.fusion import (Intrinsics, backproject, backproject_pixels, estimate_object,
                                 fit_table_plane, transform)
@@ -96,9 +97,18 @@ class PerceptionNode(Node):
             self.detector = ColorBlobDetector()
         elif self.detector_name != "tabletop":
             raise SystemExit(f"unknown detector '{self.detector_name}' (tabletop | yolo_world | color_blob)")
-        self.vlm = OllamaBackend(p("vlm.model", "gemma3:4b").value, p("vlm.url", "http://localhost:11434").value,
-                                 p("vlm.keep_alive", "10m").value, p("vlm.num_ctx", 4096).value,
-                                 p("vlm.num_predict", 384).value)
+        self.vlm = build(p("vlm_backend", "hybrid").value,
+                         cloud={"model": p("vlm.cloud_model", "qwen/qwen3-vl-30b-a3b-instruct").value,
+                                "url": p("vlm.cloud_url", "https://openrouter.ai/api/v1").value,
+                                "first_byte_timeout": p("vlm.first_byte_timeout", 8.0).value,
+                                "total_timeout": p("vlm.total_timeout", 20.0).value,
+                                "max_tokens": p("vlm.max_tokens", 500).value},
+                         local={"model": p("vlm.model", "moondream").value, "url": p("vlm.url", "http://localhost:11434").value,
+                                "keep_alive": p("vlm.keep_alive", "10m").value, "num_ctx": p("vlm.num_ctx", 4096).value,
+                                "num_predict": p("vlm.num_predict", 384).value},
+                         breaker={"failures": p("breaker.failures", 3).value, "cooldown": p("breaker.cooldown", 60.0).value,
+                                  "retry_backoff": p("breaker.retry_backoff", 0.5).value},
+                         log=lambda m: self.get_logger().info(m))
         self.vlm_size: int = p("vlm.image_size", 448).value
 
         self.tf = Buffer()
@@ -328,7 +338,7 @@ class PerceptionNode(Node):
             return res
         t0 = time.monotonic()
         try:
-            answer = self.vlm.ask(jpg, prompt, schema)
+            answer = self.vlm.ask(jpg, prompt, schema, source=HEAD_CAMERA)
             res.success, res.answer_json, res.message = True, json.dumps(answer), "ok"
         except BackendError as exc:
             res.success, res.message = False, str(exc)

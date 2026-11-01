@@ -20,3 +20,6 @@ src/aibot_ai/models/*.pt
 
 # CLIP text-encoder weights for detector:=yolo_world (downloaded automatically by ultralytics; 354 MB)
 weights/
+
+# Local secrets (OpenRouter key)
+.env

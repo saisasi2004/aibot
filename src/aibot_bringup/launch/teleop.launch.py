@@ -6,7 +6,7 @@
 Arguments
     mode         mimic  mimic (webcam drives the robot) | ai (Physical AI: skills, perception, planner)
     detector     tabletop  perception: tabletop (depth) | yolo_world | color_blob
-    llm_backend  ollama  planner LLM (local Ollama; model and URL in aibot_ai/config/ai.yaml)
+    llm_backend  hybrid  models: hybrid (OpenRouter, then local Ollama) | openrouter | ollama (see aibot_ai/config/ai.yaml)
     mirror       false  true: the robot moves like your mirror image (your right arm -> its left)
     use_ik       false  true: wrist-position IK with elbow hint instead of direct angle mapping
     camera_id    0      /dev/video<N>
@@ -24,7 +24,9 @@ perception_node and planner_node (chat: GUI panel in AI mode, or `ros2 run aibot
 """
 import importlib.util
 import os
+from pathlib import Path
 
+from aibot_ai.backends.secrets import load_dotenv
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
@@ -44,6 +46,12 @@ def _grasp_objects(gz_share: str) -> list[str]:
 
 
 def generate_launch_description() -> LaunchDescription:
+    # OPENROUTER_API_KEY from the environment, or the git-ignored .env at the workspace root
+    # (the launch file is symlinked from src/, so that root is found from its real path; the
+    # current directory covers non-symlink installs). Children inherit the environment.
+    for env_file in (Path(os.path.realpath(__file__)).parents[3] / ".env", Path.cwd() / ".env"):
+        if load_dotenv(env_file):
+            break
     bringup = get_package_share_directory("aibot_bringup")
     teleop = get_package_share_directory("aibot_teleop")
     gz_share = get_package_share_directory("aibot_gazebo")
@@ -86,7 +94,8 @@ def generate_launch_description() -> LaunchDescription:
     )
     perception = Node(
         package="aibot_ai", executable="perception_node", name="perception_node", output="screen",
-        parameters=[ai_params, {"use_sim_time": True, "detector": LaunchConfiguration("detector")}],
+        parameters=[ai_params, {"use_sim_time": True, "detector": LaunchConfiguration("detector"),
+                               "vlm_backend": LaunchConfiguration("llm_backend")}],
     )
     skill_server = Node(
         package="aibot_ai", executable="skill_server_node", name="skill_server_node", output="screen",
@@ -97,7 +106,7 @@ def generate_launch_description() -> LaunchDescription:
     # Only perception needs it (TF at the camera image's stamp).
     planner = Node(
         package="aibot_ai", executable="planner_node", name="planner_node", output="screen",
-        parameters=[ai_params, {"llm_backend": LaunchConfiguration("llm_backend")}],
+        parameters=[ai_params, {"llm_backend": LaunchConfiguration("llm_backend")}],  # key: env / .env
     )
     grasp = Node(
         package="aibot_teleop", executable="grasp_manager_node", name="grasp_manager_node", output="screen",
@@ -111,7 +120,7 @@ def generate_launch_description() -> LaunchDescription:
     return LaunchDescription([
         DeclareLaunchArgument("mode", default_value="mimic", description="start in mimic or ai mode"),
         DeclareLaunchArgument("detector", default_value="tabletop", description="tabletop | yolo_world | color_blob"),
-        DeclareLaunchArgument("llm_backend", default_value="ollama", description="planner LLM backend (ollama)"),
+        DeclareLaunchArgument("llm_backend", default_value="hybrid", description="models: hybrid | openrouter | ollama"),
         DeclareLaunchArgument("mirror", default_value="false", description="robot mirrors you (your right -> its left)"),
         DeclareLaunchArgument("use_ik", default_value="false", description="wrist IK instead of direct angle mapping"),
         DeclareLaunchArgument("camera_id", default_value="0", description="/dev/video<N>"),

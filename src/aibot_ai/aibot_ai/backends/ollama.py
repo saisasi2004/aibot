@@ -15,7 +15,7 @@ import time
 import urllib.error
 import urllib.request
 
-from .base import BackendError, LLMBackend, VLMBackend
+from .base import BackendError, LLMBackend, VLMBackend, check_image_source
 
 
 def list_models(url: str, timeout: float = 3.0) -> list[str]:
@@ -36,6 +36,7 @@ def require_model(url: str, model: str) -> None:
 
 class OllamaBackend(LLMBackend, VLMBackend):
     name = "ollama"
+    kind = "local"
 
     def __init__(self, model: str, url: str = "http://localhost:11434", keep_alive: str = "30m",
                  num_ctx: int = 4096, num_predict: int = 512, temperature: float = 0.1, timeout: float = 120.0,
@@ -104,7 +105,11 @@ class OllamaBackend(LLMBackend, VLMBackend):
     def generate(self, messages: list[dict], schema: dict | None = None) -> dict:
         return self._chat(messages, schema)
 
-    def ask(self, image_jpeg: bytes, prompt: str, schema: dict | None = None) -> dict:
+    def describe_last(self) -> str:
+        return f"local {self.last_stats.get('wall_s', 0.0):.1f} s"
+
+    def ask(self, image_jpeg: bytes, prompt: str, schema: dict | None = None, source: str = "") -> dict:
+        check_image_source(source)
         msg = {"role": "user", "content": prompt, "images": [base64.b64encode(image_jpeg).decode()]}
         return self._chat([msg], schema)
 

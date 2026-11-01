@@ -11,6 +11,10 @@
 #         WITH_YOLO=1 ./scripts/setup_ai.sh     (also the optional YOLO-World detector, ~1 GB)
 #         SKIP_MODELS=1 ./scripts/setup_ai.sh   (do not pull models)
 # Install Ollama first if needed:  curl -fsSL https://ollama.com/install.sh | sh
+#
+# Cloud models (optional, used first when available): put your OpenRouter key in the git-ignored
+# .env at the workspace root as  OPENROUTER_API_KEY=...  or export it. Without a key everything runs
+# on the local models. llm_backend:=hybrid|openrouter|ollama selects (default hybrid).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -47,6 +51,12 @@ if [[ "${WITH_YOLO:-0}" == 1 ]]; then
   "$VENV/bin/python" -m pip install --no-deps ultralytics==8.4.188
   mkdir -p "$ROOT/src/aibot_ai/models"
   (cd "$ROOT/src/aibot_ai/models" && "$VENV/bin/python" -c "from ultralytics import YOLOWorld; YOLOWorld('yolov8s-worldv2.pt')")
+fi
+
+if [[ -n "${OPENROUTER_API_KEY:-}" ]] || grep -qE '^ *OPENROUTER_API_KEY *= *[^ ]' "$ROOT/.env" 2>/dev/null; then
+  echo "[setup_ai] OpenRouter key: present (cloud models first, local fallback)"
+else
+  echo "[setup_ai] OpenRouter key: missing (local models only; see the comment at the top of this script)"
 fi
 
 echo "[setup_ai] import check (ROS sourced)"

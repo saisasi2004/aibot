@@ -94,8 +94,17 @@ perception_node:
     yolo_world:
       conf: 0.05
       imgsz: 640
+    vlm_backend: hybrid          # hybrid (cloud, then local) | openrouter | ollama
+    breaker:
+      failures: 3
+      cooldown: 60.0
+      retry_backoff: 0.5
     vlm:
-      model: gemma3:4b
+      cloud_model: qwen/qwen3-vl-30b-a3b-instruct
+      first_byte_timeout: 8.0    # s (images take longer to reach the first token)
+      total_timeout: 20.0
+      max_tokens: 500
+      model: moondream           # local fallback (see the README model table)
       url: http://localhost:11434
       keep_alive: 10m
       num_ctx: 4096
@@ -104,8 +113,17 @@ perception_node:
 
 planner_node:
   ros__parameters:
-    llm_backend: ollama          # launch argument llm_backend:=ollama (the only backend; Anthropic was cut)
+    llm_backend: hybrid          # launch argument: hybrid (cloud, then local) | openrouter | ollama
+    breaker:                     # cloud circuit breaker
+      failures: 3                # consecutive failures before skipping the cloud ...
+      cooldown: 60.0             # ... for this long (s), then one call probes it
+      retry_backoff: 0.5         # s before the single retry on 429 / 5xx
     llm:
+      cloud_model: google/gemini-3.5-flash  
+      first_byte_timeout: 6.0    # s until the first content (idle: under 2.3 s; a cold connection under sim load missed 4)
+      total_timeout: 15.0        # s for the whole cloud call
+      max_tokens: 800
+      reasoning_effort: minimal  # Gemini's reasoning is mandatory: minimal is the lowest it accepts
       model: granite4.2:3b       # verified on the Ollama registry and installed (2.2 GB)
       url: http://localhost:11434
       keep_alive: 30m            # stay resident between requests while in AI mode

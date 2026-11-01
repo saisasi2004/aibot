@@ -63,6 +63,7 @@ class Report:
     replans: int = 0
     first_motion_s: float | None = None
     total_s: float = 0.0
+    backend: str = ""                  # who answered the last LLM call: "cloud 1.2 s", "local 6.8 s (cloud down)"
     errors: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict:
@@ -99,6 +100,7 @@ class PlannerAgent:
                 return None, [str(exc)]
             rep.llm_calls += 1
             rep.llm_s += time.monotonic() - t0
+            rep.backend = self.llm.describe_last() or rep.backend
             try:
                 plan = parse_plan(data)
                 errs = validate(plan, world)

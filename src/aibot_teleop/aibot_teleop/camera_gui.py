@@ -294,7 +294,7 @@ class CameraWindow(QtWidgets.QWidget):
         rep = st.get("report") or {}
         if state == "idle" and rep:
             fm = rep.get("first_motion_s")
-            detail = (f"last: {rep.get('kind')} in {rep.get('total_s', 0):.0f} s, LLM {rep.get('llm_s', 0):.0f} s"
+            detail = (f"last: {rep.get('kind')} in {rep.get('total_s', 0):.0f} s, model: {rep.get('backend') or '-'}"
                       + (f", first motion after {fm:.0f} s" if fm is not None else ""))
         self.planner_state.setText(f"planner: {state}" + (f" - {detail}" if detail else ""))
 

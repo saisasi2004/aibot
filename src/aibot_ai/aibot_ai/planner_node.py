@@ -31,7 +31,8 @@ from aibot_msgs.msg import DetectedObjectArray, PlaceTarget
 from aibot_teleop.utils.mode_gate import ModeGate
 
 from .backends.base import BackendError
-from .backends.ollama import OllamaBackend
+from .backends.factory import build
+from .backends.secrets import api_key
 from .planning.agent import AgentConfig, PlannerAgent, Report, StepOutcome
 from .planning.plan import Step, World, WorldItem
 
@@ -92,15 +93,25 @@ class PlannerNode(Node):
     def __init__(self) -> None:
         super().__init__("planner_node")
         p = self.declare_parameter
-        self.backend_name: str = p("llm_backend", "ollama").value
+        self.backend_name: str = p("llm_backend", "hybrid").value
         url = p("llm.url", "http://localhost:11434").value
         self.model: str = p("llm.model", "granite4.2:3b").value
-        if self.backend_name != "ollama":
-            raise SystemExit(f"llm_backend '{self.backend_name}' not supported (only 'ollama'; the Anthropic "
-                             "backend was cut, see README)")
-        self.llm = OllamaBackend(self.model, url, p("llm.keep_alive", "30m").value, p("llm.num_ctx", 4096).value,
-                                 p("llm.num_predict", 384).value, p("llm.temperature", 0.0).value,
-                                 p("llm.timeout", 120.0).value, p("llm.think", False).value)
+        temperature = p("llm.temperature", 0.0).value
+        self.llm = build(self.backend_name,
+                         cloud={"model": p("llm.cloud_model", "google/gemini-3.5-flash").value,
+                                "url": p("llm.cloud_url", "https://openrouter.ai/api/v1").value,
+                                "first_byte_timeout": p("llm.first_byte_timeout", 4.0).value,
+                                "total_timeout": p("llm.total_timeout", 15.0).value,
+                                "max_tokens": p("llm.max_tokens", 800).value,
+                                "temperature": temperature,
+                                "reasoning_effort": p("llm.reasoning_effort", "minimal").value},
+                         local={"model": self.model, "url": url, "keep_alive": p("llm.keep_alive", "30m").value,
+                                "num_ctx": p("llm.num_ctx", 4096).value, "num_predict": p("llm.num_predict", 384).value,
+                                "temperature": temperature, "timeout": p("llm.timeout", 120.0).value,
+                                "think": p("llm.think", False).value},
+                         breaker={"failures": p("breaker.failures", 3).value, "cooldown": p("breaker.cooldown", 60.0).value,
+                                  "retry_backoff": p("breaker.retry_backoff", 0.5).value},
+                         log=lambda m: self.get_logger().info(m))
         self.warmup: bool = p("llm.warmup", True).value
         self.cb = ReentrantCallbackGroup()
         self.objects: DetectedObjectArray | None = None
@@ -126,19 +137,19 @@ class PlannerNode(Node):
         try:
             self.llm.check()
             self.llm_ok = True
-            self.get_logger().info(f"LLM backend: ollama {self.model} at {self.llm.url}")
+            self.get_logger().info(f"LLM backend ready: {self.backend_name}")
         except BackendError as exc:
             self.llm_error = str(exc)
             self.get_logger().error(f"LLM backend unavailable: {exc}")
 
     def _warm(self) -> None:
         """Load the model into memory when AI mode starts, so the first request does not pay the load."""
-        if not (self.llm_ok and self.warmup):
-            return
+        if not (self.llm_ok and self.warmup) or (self.backend_name != "ollama" and api_key()):
+            return                                    # the cloud needs no warm-up, and calls cost money
         t0 = time.monotonic()
         try:
             self.llm.generate([{"role": "user", "content": "Reply with {}"}], {"type": "object"})
-            self.get_logger().info(f"LLM warm in {time.monotonic() - t0:.1f} s (load {self.llm.last_stats.get('load_s', 0):.1f} s)")
+            self.get_logger().info(f"LLM warm in {time.monotonic() - t0:.1f} s ({self.llm.describe_last()})")
         except BackendError as exc:
             self.get_logger().warn(f"LLM warm-up failed: {exc}")
 
@@ -186,7 +197,7 @@ class PlannerNode(Node):
             self.publish_status("planning", request=text)
             rep: Report = self.agent.handle(text)
             self.get_logger().info(
-                f"request done: kind={rep.kind} success={rep.success} llm_calls={rep.llm_calls} llm={rep.llm_s:.1f}s "
+                f"request done: kind={rep.kind} success={rep.success} model=[{rep.backend}] llm_calls={rep.llm_calls} llm={rep.llm_s:.1f}s "
                 f"repairs={rep.repairs} replans={rep.replans} first_motion="
                 f"{'-' if rep.first_motion_s is None else f'{rep.first_motion_s:.1f}s'} total={rep.total_s:.1f}s "
                 f"steps={rep.executed}")
