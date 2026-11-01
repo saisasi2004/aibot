@@ -32,6 +32,8 @@ class Thing:
     held_by: str = ""
     inside: str = ""
     on: str = ""
+    semantic_name: str = ""
+    description: str = ""
 
     @property
     def size(self) -> tuple[float, float, float]:
@@ -54,7 +56,8 @@ class FakeSkills:
         return next((t for t in self.things if t.id == oid), None)
 
     def world(self) -> World:
-        items = [WorldItem(t.id, t.label, t.color, t.x, t.y, max(t.size[:2]), t.held_by, t.inside) for t in self.things]
+        items = [WorldItem(t.id, t.label, t.color, t.x, t.y, max(t.size[:2]), t.held_by, t.inside, t.semantic_name, t.description)
+                 for t in self.things]
         return World(items, dict(self.holding))
 
     def refresh(self) -> None:
@@ -159,3 +162,14 @@ def scene() -> list[Thing]:
             Thing("orange_ball_1", "ball", "orange", 0.34, 0.12), Thing("green_box_1", "box", "green", 0.52, 0.12),
             Thing("white_mug_1", "mug", "white", 0.40, -0.12), Thing("silver_bin_1", "bin", "silver", 0.46, -0.06),
             Thing("black_tray_1", "tray", "black", 0.35, 0.03)]
+
+
+def semantic_scene() -> list[Thing]:
+    """A scene whose objects only the camera model can name: geometry alone says cube/box/can."""
+    return [Thing("red_cube_1", "cube", "red", 0.40, 0.10, semantic_name="toy block", description="a small wooden toy"),
+            Thing("silver_can_1", "can", "silver", 0.50, -0.11, semantic_name="soda can", description="an aluminium drink"),
+            Thing("green_box_1", "box", "green", 0.52, 0.12, semantic_name="juice carton", description="a drink carton"),
+            Thing("white_mug_1", "mug", "white", 0.40, -0.12, semantic_name="coffee mug", description="a ceramic cup"),
+            Thing("purple_block_1", "block", "purple", 0.36, -0.02, semantic_name="screwdriver", description="a hand tool"),
+            Thing("orange_ball_1", "ball", "orange", 0.34, 0.12, semantic_name="tennis ball", description="a sports ball"),
+            Thing("silver_bin_1", "bin", "silver", 0.46, -0.06, semantic_name="metal bin", description="a storage container")]

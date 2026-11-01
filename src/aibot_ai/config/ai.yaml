@@ -94,6 +94,12 @@ perception_node:
     yolo_world:
       conf: 0.05
       imgsz: 640
+    semantic:                    # VLM names for detected objects: background, cached, geometry untouched
+      enabled: true
+      min_hits: 2                # detections before an object is worth labelling
+      max_objects: 8             # per request (one contact-sheet image)
+      move_tolerance: 0.03       # m: a move or size change beyond this drops the label
+      retry_s: 10.0              # s between label requests
     vlm_backend: hybrid          # hybrid (cloud, then local) | openrouter | ollama
     breaker:
       failures: 3
@@ -133,6 +139,10 @@ planner_node:
       think: false               # granite4.2 reasons silently first: ~240 tokens / 80-120 s here; off: 2-8 s
       timeout: 120.0             # s per LLM call (CPU)
       warmup: true               # load the model when AI mode starts
+    vlm_check:                   # second opinion from the camera (geometry stays authoritative)
+      verify: true               # ask after pick/place, in the background
+      replan_on_disagree: false  # the cloud VLM measured a "yes" bias: report only
+      describe_timeout: 10.0     # s for a scene description on failures and scene questions
     max_replans: 2               # after a failed step: re-plan with the failure as feedback
     repair_attempts: 1           # invalid plan: one retry with the validator's errors
     history_turns: 3             # earlier exchanges in the prompt ("put it back")

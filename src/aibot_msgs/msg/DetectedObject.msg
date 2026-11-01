@@ -10,3 +10,5 @@ builtin_interfaces/Time last_seen
 string held_by                  # "" | "left" | "right"
 string inside                   # container id this object was put into ("" if none)
 int32[4] box                    # image box (u0 v0 u1 v1, head camera pixels) of the last observation; zeros if none
+string semantic_name            # what the VLM says it is ("coffee mug"); geometry above stays the detector's
+string description              # short VLM description; both empty until labelled

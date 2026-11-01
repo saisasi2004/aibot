@@ -28,6 +28,7 @@ Rules:
   "front" is the table edge nearest the robot.
 - If the words fit several objects and nothing says which, kind "clarify" and ask (no steps).
 - If an object does not exist or the task cannot be done, kind "impossible" and say why.
+- A name in quotes is what the camera says an object is; match the user's words to it too.
 - Greetings ("hi", "wave") are a plan with a wave step. Questions get kind "answer".
 - message: one short sentence for the user."""
 
@@ -60,6 +61,8 @@ def world_text(world: World) -> str:
     lines = []
     for o in world.objects:
         what = f"{o.color + ' ' if o.color else ''}{o.label or 'object'}"
+        if o.semantic_name:
+            what += f' ("{o.semantic_name}"' + (f": {o.description}" if o.description else "") + ")"
         note = " (container)" if o.is_container else ""
         if o.held_by:
             note += f", held in the {o.held_by} hand"
@@ -70,13 +73,15 @@ def world_text(world: World) -> str:
     return "WORLD:\n" + ("\n".join(lines) if lines else "(nothing seen)") + f"\nHANDS: {hands}"
 
 
-def build_messages(request: str, world: World, history: list[str], feedback: str = "") -> list[dict]:
+def build_messages(request: str, world: World, history: list[str], feedback: str = "", camera: str = "") -> list[dict]:
     msgs = [{"role": "system", "content": SYSTEM}]
     for user, answer in EXAMPLES:
         msgs += [{"role": "user", "content": user}, {"role": "assistant", "content": json.dumps(answer)}]
     parts = [world_text(world)]
     if history:
         parts.append("EARLIER:\n" + "\n".join(history))
+    if camera:
+        parts.append(f"CAMERA SAYS: {camera}")
     parts.append(f"REQUEST: {request}")
     if feedback:
         parts.append(f"FEEDBACK: {feedback}")

@@ -24,6 +24,10 @@ SUPERLATIVES = {
 }
 
 
+_STOPWORDS = {"the", "and", "pick", "put", "hand", "give", "with", "that", "this", "one", "for", "please", "object",
+              "left", "right", "nearest", "closest", "front", "back", "leftmost", "rightmost", "farthest", "furthest", "table"}
+
+
 class Perceived(Protocol):
     id: str
     label: str
@@ -39,6 +43,17 @@ def parse(text: str) -> tuple[set[str], set[str], tuple[int, int] | None]:
     return colors, shapes, sup
 
 
+def semantic_matches(text: str, objects: list[Perceived]) -> list[Perceived]:
+    """Objects whose VLM name or description shares a meaningful word with the text."""
+    words = {w for w in re.findall(r"[a-z]+", text.lower()) if len(w) > 2 and w not in _STOPWORDS and w not in COLORS}
+    out = []
+    for o in objects:
+        name = set(re.findall(r"[a-z]+", (getattr(o, "semantic_name", "") + " " + getattr(o, "description", "")).lower()))
+        if words & name:
+            out.append(o)
+    return out
+
+
 def match(text: str, objects: list[Perceived]) -> list[Perceived]:
     """Candidates for `text`, best first. Exact id wins; otherwise filter by colour and shape
     (a label of "" or an object's unknown colour never matches a stated word), then apply a
@@ -48,9 +63,13 @@ def match(text: str, objects: list[Perceived]) -> list[Perceived]:
         if o.id == t:
             return [o]
     colors, shapes, sup = parse(t)
-    if not colors and not shapes and sup is None:
+    named = semantic_matches(t, objects)
+    if named:                                  # "the screwdriver": the VLM's name beats the shape word
+        cands = [o for o in named if not colors or o.color in colors]
+    elif not colors and not shapes and sup is None:
         return []
-    cands = [o for o in objects if (not colors or o.color in colors) and (not shapes or o.label in shapes)]
+    else:
+        cands = [o for o in objects if (not colors or o.color in colors) and (not shapes or o.label in shapes)]
     if sup is not None and len(cands) > 1:
         axis, sign = sup
         cands = [max(cands, key=lambda o: sign * float(o.position[axis]))]

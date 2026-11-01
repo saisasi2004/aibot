@@ -45,8 +45,9 @@ from aibot_msgs.srv import SetHeld, SetPrompts, VlmQuery
 from aibot_teleop.utils.mode_gate import MODE_TOPIC, mode_qos
 
 from .backends.base import BackendError
-from .backends.base import HEAD_CAMERA
+from .backends.base import HEAD_CAMERA, BackendError
 from .backends.factory import build
+from .perception.semantics import LABEL_SCHEMA, SemanticCache, apply_labels, contact_sheet, label_prompt
 from .perception.detectors import ColorBlobDetector, Detector, YoloWorldDetector, nms
 from .perception.fusion import (Intrinsics, backproject, backproject_pixels, estimate_object,
                                 fit_table_plane, transform)
@@ -110,6 +111,13 @@ class PerceptionNode(Node):
                                   "retry_backoff": p("breaker.retry_backoff", 0.5).value},
                          log=lambda m: self.get_logger().info(m))
         self.vlm_size: int = p("vlm.image_size", 448).value
+        self.labels = SemanticCache(p("semantic.move_tolerance", 0.03).value)
+        self.label_enabled: bool = p("semantic.enabled", True).value
+        self.label_min_hits: int = p("semantic.min_hits", 2).value
+        self.label_max_objects: int = p("semantic.max_objects", 8).value
+        self.label_retry: float = p("semantic.retry_s", 10.0).value
+        self._labelling = False
+        self._last_label_try = 0.0
 
         self.tf = Buffer()
         self.tf_listener = TransformListener(self.tf, self)
@@ -261,6 +269,7 @@ class PerceptionNode(Node):
         now = stamp.nanoseconds * 1e-9
         self.memory.update(observations, now)
         self.last_ms = (t_det, t_fus)
+        self._maybe_label(rgb)
         self._publish(stamp)
 
     def _publish(self, stamp: Time) -> None:
@@ -269,7 +278,8 @@ class PerceptionNode(Node):
         markers = MarkerArray(markers=[Marker(action=Marker.DELETEALL)])
         for i, o in enumerate(self.memory.objects.values()):
             m = DetectedObject(id=o.id, label=o.label, color=o.color, confidence=float(o.confidence), held_by=o.held_by,
-                               inside=o.inside, box=[int(v) for v in o.box])
+                               inside=o.inside, box=[int(v) for v in o.box], semantic_name=o.semantic_name,
+                               description=o.description)
             m.pose.position = Point(x=float(o.position[0]), y=float(o.position[1]), z=float(o.position[2]))
             m.pose.orientation.x, m.pose.orientation.y, m.pose.orientation.z, m.pose.orientation.w = _quat_z(o.yaw)
             m.size.x, m.size.y, m.size.z = (float(v) for v in o.size)
@@ -317,6 +327,45 @@ class PerceptionNode(Node):
                                            self.get_clock().now().nanoseconds * 1e-9)
         res.message = "ok" if res.success else f"unknown object {req.object_id}"
         return res
+
+    # ------------------------------------------------------------------ semantic labels
+    def _maybe_label(self, rgb: np.ndarray) -> None:
+        """Called after a detection, never waits: objects seen a few times without a valid label go
+        to one background VLM request (a numbered contact sheet); detection and control go on."""
+        for o in self.memory.objects.values():
+            if self.labels.valid(o.id, o.position, o.size):
+                o.semantic_name, o.description = self.labels.get(o.id)
+            else:
+                o.semantic_name, o.description = "", ""
+        if not self.label_enabled or self._labelling or self._arm_over_table():
+            return
+        todo = [o for o in self.memory.objects.values() if not o.held_by and not o.inside and o.hits >= self.label_min_hits
+                and not self.labels.valid(o.id, o.position, o.size) and o.box[2] > o.box[0]]
+        if not todo or time.monotonic() - self._last_label_try < self.label_retry:
+            return
+        self._labelling, self._last_label_try = True, time.monotonic()
+        snapshot = [(o.id, o.position.copy(), o.size.copy(), o.box) for o in todo[:self.label_max_objects]]
+        threading.Thread(target=self._label, args=(rgb.copy(), snapshot), daemon=True).start()
+
+    def _label(self, rgb: np.ndarray, snapshot: list) -> None:
+        t0 = time.monotonic()
+        try:
+            ids = [e[0] for e in snapshot]
+            ok, buf = cv2.imencode(".jpg", cv2.cvtColor(contact_sheet(rgb, [e[3] for e in snapshot]), cv2.COLOR_RGB2BGR),
+                                   [cv2.IMWRITE_JPEG_QUALITY, 85])
+            if not ok:
+                return
+            answer = self.vlm.ask(buf.tobytes(), label_prompt(len(ids)), LABEL_SCHEMA, source=HEAD_CAMERA)
+            got = apply_labels(answer, ids)
+            for oid, pos, size, _box in snapshot:
+                if oid in got:
+                    self.labels.store(oid, pos, size, *got[oid])
+            self.get_logger().info(f"semantic labels: {len(got)}/{len(ids)} objects in {time.monotonic() - t0:.1f} s "
+                                   f"[{self.vlm.describe_last()}]: {[v[0] for v in got.values()]}")
+        except BackendError as exc:
+            self.get_logger().warn(f"semantic labelling failed: {exc}", throttle_duration_sec=30.0)
+        finally:
+            self._labelling = False
 
     def _jpeg(self) -> bytes | None:
         frame = self._frame()

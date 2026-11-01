@@ -23,13 +23,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src" / "aibot_ai" / "test"))
 
-from fake_world import FakeSkills, scene  # noqa: E402
+from fake_world import FakeSkills, scene, semantic_scene  # noqa: E402
 
 from aibot_ai.backends.base import HEAD_CAMERA, BackendError  # noqa: E402
 from aibot_ai.backends.ollama import OllamaBackend  # noqa: E402
 from aibot_ai.backends.openrouter import OpenRouterBackend  # noqa: E402
 from aibot_ai.backends.schema_check import schema_errors  # noqa: E402
 from aibot_ai.backends.secrets import key_status, load_dotenv  # noqa: E402
+from aibot_ai.perception.semantics import BOXES_PROMPT, BOXES_SCHEMA, box_agreement  # noqa: E402
 from aibot_ai.planning.plan import PLAN_SCHEMA, parse_plan, validate  # noqa: E402
 from aibot_ai.planning.prompt import build_messages  # noqa: E402
 
@@ -57,6 +58,19 @@ COMMANDS = [
     ("put the banana in the bin", lambda p: p.kind == "impossible"),
     ("what objects do you see on the table?", lambda p: p.kind == "answer"),
 ]
+# commands that need the camera model's names: geometry alone says block / box / can
+SEMANTIC = [
+    ("put the screwdriver in the bin", lambda p: picks(p) == ["purple_block_1"]),
+    ("put the tool in the bin", lambda p: picks(p) == ["purple_block_1"]),
+    ("put the soda in the bin", lambda p: picks(p) == ["silver_can_1"]),
+    ("put the coffee in the bin", lambda p: picks(p) == ["white_mug_1"]),
+    ("move the juice to the back left", lambda p: picks(p) == ["green_box_1"] and p.steps[-1].region == "back_left"),
+    ("put the toy in the bin", lambda p: picks(p) == ["red_cube_1"]),
+    ("put the tennis ball next to the coffee mug", lambda p: picks(p) == ["orange_ball_1"]),
+    ("put the drink carton in the bin", lambda p: picks(p) == ["green_box_1"]),
+    ("put the sports equipment in the bin", lambda p: picks(p) == ["orange_ball_1"]),
+    ("put the hammer in the bin", lambda p: p.kind == "impossible"),
+]
 VERIFY_SCHEMA = {"type": "object", "properties": {"answer": {"type": "boolean"}}, "required": ["answer"]}
 DESCRIBE_SCHEMA = {"type": "object", "properties": {"objects": {"type": "array", "items": {"type": "string"}}},
                    "required": ["objects"]}
@@ -76,12 +90,14 @@ def capture(n: int, out: Path) -> None:
     from sensor_msgs.msg import Image
 
     from aibot_msgs.action import ExecuteSkill
+    from aibot_msgs.msg import DetectedObjectArray
     from aibot_msgs.srv import ResetScene
     out.mkdir(parents=True, exist_ok=True)
     rclpy.init()
     node = rclpy.create_node("bench_capture")
     latest: dict = {}
     node.create_subscription(Image, "/head_camera/image", lambda m: latest.update(m=m), 2)
+    node.create_subscription(DetectedObjectArray, "/aibot/perception/objects", lambda m: latest.update(det=m), 5)
     reset = node.create_client(ResetScene, "/aibot/scene/reset")
     skills_ = ActionClient(node, ExecuteSkill, "/aibot/skills/execute")
     ex = MultiThreadedExecutor(num_threads=2)
@@ -100,11 +116,12 @@ def capture(n: int, out: Path) -> None:
         while not fut.done():
             time.sleep(0.05)
         placed = list(fut.result().placed)
-        time.sleep(3.0)
+        time.sleep(4.0)
         m = latest["m"]
+        boxes = [[int(v) for v in o.box] for o in latest["det"].objects if o.box[2] > o.box[0]] if "det" in latest else []
         img = np.frombuffer(bytes(m.data), np.uint8).reshape(m.height, m.width, 3)
         cv2.imwrite(str(out / f"scene{k}.jpg"), cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
-        (out / f"scene{k}.json").write_text(json.dumps({"placed": placed}))
+        (out / f"scene{k}.json").write_text(json.dumps({"placed": placed, "boxes": boxes, "size": [m.width, m.height]}))
         print("captured", k, placed, flush=True)
     rclpy.try_shutdown()
 
@@ -168,6 +185,52 @@ def bench_vlm(name: str, b, images: Path, px: int, rows: list[dict], verify_only
             print(f"  {name:32s} {row['input'][:28]:28s} first {row['first_s'] or 0:5.1f} total {row['total_s']:5.1f} schema {row['schema_ok']!s:5} ok {row['correct']!s:5} {row['note']}", flush=True)
 
 
+def bench_semantic(name: str, b, rows: list[dict]) -> None:
+    """The same commands with and without the camera model's names in the world state."""
+    for mode in ("with names", "no names"):
+        things = semantic_scene()
+        if mode == "no names":
+            for t in things:
+                t.semantic_name, t.description = "", ""
+        world = FakeSkills(things).world()
+        for text, check in SEMANTIC:
+            t0 = time.monotonic()
+            row = {"role": f"sem {mode}", "model": name, "input": text, "first_s": None, "total_s": None, "schema_ok": False, "correct": False, "note": ""}
+            try:
+                data = b.generate(build_messages(text, world, []), PLAN_SCHEMA)
+                plan = parse_plan(data)
+                errs = validate(plan, world)
+                row.update(first_s=first_byte(b), schema_ok=True, correct=not errs and bool(check(plan)),
+                           note="; ".join(errs)[:80] or f"{plan.kind} {[s.text() for s in plan.steps]}"[:80])
+            except (BackendError, ValueError, IndexError) as exc:
+                row["note"] = str(exc)[:80]
+            row["total_s"] = time.monotonic() - t0
+            rows.append(row)
+            print(f"  {name:26s} {mode:10s} {text[:42]:42s} ok {row['correct']!s:5} {row['total_s']:5.1f}s {row['note'][:60]}", flush=True)
+
+
+def bench_crosscheck(name: str, b, images: Path) -> None:
+    """VLM boxes vs the depth detector's, on captured frames. Reported only; never replaces it."""
+    scores = []
+    for jpg in sorted(images.glob("*.jpg")):
+        meta = json.loads(jpg.with_suffix(".json").read_text())
+        det = meta.get("boxes")
+        if not det:
+            continue
+        w, h = meta["size"]
+        try:
+            ans = b.ask(jpg.read_bytes(), BOXES_PROMPT, BOXES_SCHEMA, source=HEAD_CAMERA)
+        except BackendError as exc:
+            print("  crosscheck failed:", str(exc)[:80])
+            continue
+        vlm = [(o["box"][0] * w / 1000, o["box"][1] * h / 1000, o["box"][2] * w / 1000, o["box"][3] * h / 1000)
+               for o in ans.get("objects", []) if len(o.get("box", [])) == 4]
+        scores.append(box_agreement(det, vlm))
+        print(f"  {jpg.stem}: detector {len(det)} boxes, VLM {len(vlm)}, agreement {scores[-1]:.0%} ({b.describe_last()})", flush=True)
+    if scores:
+        print(f"crosscheck {name}: mean agreement {statistics.mean(scores):.0%} over {len(scores)} frames (IoU >= 0.3)")
+
+
 def summary(rows: list[dict]) -> None:
     print(f"\n{'role':8s} {'model':34s} {'n':>3s} {'first mean':>10s} {'total mean':>10s} {'total p95':>9s} {'schema':>7s} {'correct':>7s}")
     for key in sorted({(r["role"], r["model"]) for r in rows}):
@@ -189,6 +252,8 @@ def main() -> None:
     ap.add_argument("--local-vlm", nargs="*", default=["moondream"])
     ap.add_argument("--sizes", type=int, nargs="*", default=[448])
     ap.add_argument("--only", choices=("all", "llm", "vlm", "cloud", "local"), default="all")
+    ap.add_argument("--semantic", action="store_true", help="only: plans with and without the VLM's names")
+    ap.add_argument("--crosscheck", action="store_true", help="only: VLM boxes vs detector boxes on the images")
     args = ap.parse_args()
     load_dotenv(ROOT / ".env")
     print(key_status())
@@ -196,6 +261,14 @@ def main() -> None:
         capture(args.capture, args.images)
         return
     rows: list[dict] = []
+    if args.crosscheck:
+        bench_crosscheck(args.cloud_vlm, OpenRouterBackend(args.cloud_vlm, first_byte_timeout=10, total_timeout=30, max_tokens=500), args.images)
+        return
+    if args.semantic:
+        bench_semantic(args.cloud_llm, OpenRouterBackend(args.cloud_llm, reasoning_effort="minimal"), rows)
+        bench_semantic(args.local_llm, OllamaBackend(args.local_llm, num_predict=384, temperature=0.0, think=False), rows)
+        summary(rows)
+        return
     cloud, local = args.only in ("all", "cloud", "llm", "vlm"), args.only in ("all", "local", "llm", "vlm")
     if args.only in ("all", "llm", "cloud", "local"):
         if cloud and args.only != "local":

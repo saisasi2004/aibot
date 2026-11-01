@@ -24,6 +24,7 @@ from ..backends.base import BackendError, LLMBackend
 from ..skills.gestures import GESTURE_SKILLS, is_greeting
 from .plan import PLAN_SCHEMA, Plan, Step, World, ambiguous_mentions, parse_plan, validate
 from .prompt import build_messages
+from .verify import check_for, is_scene_question
 
 STOP_CODES = ("CANCELLED", "NOT_AI_MODE")
 
@@ -39,6 +40,8 @@ class SkillRunner(Protocol):
     def run(self, step: Step, cancelled: threading.Event) -> StepOutcome: ...
     def world(self) -> World: ...
     def refresh(self) -> None: ...
+    # optional, for the camera model (absent or returning None/"" = no opinion):
+    #   verify(question) -> (answer: bool | None, reason: str)    describe(timeout) -> str
 
 
 @dataclass
@@ -46,6 +49,9 @@ class AgentConfig:
     max_replans: int = 2
     repair_attempts: int = 1
     history_turns: int = 3
+    verify: bool = True                # ask the camera model after pick/place, in the background
+    replan_on_disagree: bool = False
+    describe_timeout: float = 10.0
 
 
 @dataclass
@@ -63,6 +69,9 @@ class Report:
     replans: int = 0
     first_motion_s: float | None = None
     total_s: float = 0.0
+    verifications: list = field(default_factory=list)   # (question, expected, answer, reason)
+    disagreements: list = field(default_factory=list)   # questions the camera model answered against geometry
+    camera_s: float = 0.0              # time spent waiting for scene descriptions
     backend: str = ""                  # who answered the last LLM call: "cloud 1.2 s", "local 6.8 s (cloud down)"
     errors: list[str] = field(default_factory=list)
 
@@ -87,8 +96,37 @@ class PlannerAgent:
         self.cancelled.set()
 
     # ------------------------------------------------------------------ LLM
-    def _plan(self, request: str, world: World, feedback: str, rep: Report) -> tuple[Plan | None, list[str]]:
-        msgs = build_messages(request, world, self.history[-self.cfg.history_turns:], feedback)
+    def _camera_words(self, rep: Report) -> str:
+        """A scene description within its time budget ("" if there is no camera model or no answer)."""
+        describe = getattr(self.runner, "describe", None)
+        if describe is None:
+            return ""
+        t0 = time.monotonic()
+        text = describe(self.cfg.describe_timeout) or ""
+        rep.camera_s += time.monotonic() - t0
+        return text
+
+    def _verify_async(self, step: Step, world: World, picked: str, rep: Report) -> threading.Thread | None:
+        """Second opinion after a successful step; the next step does not wait for it."""
+        verify = getattr(self.runner, "verify", None)
+        check = check_for(step, world, picked) if self.cfg.verify and verify is not None else None
+        if check is None:
+            return None
+
+        def work() -> None:
+            answer, reason = verify(check.question)
+            rep.verifications.append((check.question, check.expected, answer, reason))
+            if answer is not None and answer != check.expected:
+                rep.disagreements.append(check.question)
+                self.log(f"camera model disagrees with geometry: {check.question} expected {check.expected}, "
+                         f"got {answer} ({reason})")
+
+        t = threading.Thread(target=work, daemon=True)
+        t.start()
+        return t
+
+    def _plan(self, request: str, world: World, feedback: str, rep: Report, camera: str = "") -> tuple[Plan | None, list[str]]:
+        msgs = build_messages(request, world, self.history[-self.cfg.history_turns:], feedback, camera)
         plan, errs = None, ["no answer"]
         for attempt in range(1 + self.cfg.repair_attempts):
             t0 = time.monotonic()
@@ -156,10 +194,12 @@ class PlannerAgent:
             self.runner.refresh()          # not counted as "first motion": that is the first plan step
             world = self.runner.world()
         feedback = ""
+        camera = self._camera_words(rep) if is_scene_question(rep.request) and not is_greeting(rep.request) else ""
+        checks: list[threading.Thread] = []
         while True:
             if self.cancelled.is_set():
                 return self._reply(rep, "stopped", "Stopped.", False)
-            plan, errs = self._plan(request, world, feedback, rep)
+            plan, errs = self._plan(request, world, feedback, rep, camera)
             if plan is None:
                 rep.errors += errs
                 return self._reply(rep, "error", "Sorry, I could not make a workable plan: " + "; ".join(errs[:3]), False)
@@ -179,6 +219,7 @@ class PlannerAgent:
             # a purely social plan: the words appear as the motion starts, once, without plan jargon
             self.say(plan.message if social else f"{plan.message} Plan: " + ", ".join(s.text() for s in plan.steps))
             failed = None
+            picked = ""
             for i, step in enumerate(plan.steps):
                 if self.cancelled.is_set():
                     return self._reply(rep, "stopped", "Stopped.", False)
@@ -190,8 +231,21 @@ class PlannerAgent:
                 if not out.success:
                     failed = (i, step, out)
                     break
+                t = self._verify_async(step, world, picked, rep)
+                checks += [t] if t else []
+                picked = step.object if step.skill == "pick" else ("" if step.skill == "place" else picked)
             if failed is None:
-                return self._reply(rep, "plan", plan.message if social else f"Done: {plan.message}", True, say=not social)
+                for t in checks:
+                    t.join(self.cfg.describe_timeout)      # results belong to this request's report
+                if rep.disagreements and self.cfg.replan_on_disagree and rep.replans < self.cfg.max_replans:
+                    rep.replans += 1
+                    self.runner.refresh()
+                    world = self.runner.world()
+                    feedback = "The camera doubts this happened: " + "; ".join(rep.disagreements) + ". Check WORLD and finish the task."
+                    rep.disagreements = []
+                    continue
+                note = " (the camera model doubts this: it can be wrong; geometry says it worked)" if rep.disagreements else ""
+                return self._reply(rep, "plan", (plan.message if social else f"Done: {plan.message}") + note, True, say=not social)
             i, step, out = failed
             if out.reason_code in STOP_CODES or self.cancelled.is_set():
                 return self._reply(rep, "stopped", f"Stopped during {step.text()}.", False)
@@ -202,5 +256,7 @@ class PlannerAgent:
                 self.runner.refresh()
             world = self.runner.world()
             done = ", ".join(s.text() for s in plan.steps[:i]) or "nothing"
+            seen = self._camera_words(rep)
             feedback = (f"Step {step.text()} failed with {out.reason_code}: {out.message}. Already done: {done}. "
-                        "Plan the rest from the WORLD above, choose something else, or say it is impossible.")
+                        + (f"The camera sees: {seen} " if seen else "")
+                        + "Plan the rest from the WORLD above, choose something else, or say it is impossible.")

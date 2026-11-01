@@ -33,13 +33,16 @@ class TrackedObject:
     held_by: str = ""
     votes: dict[str, int] = field(default_factory=dict)   # label -> frames; label = the majority
     box: tuple[int, int, int, int] = (0, 0, 0, 0)          # image box of the last observation (for display)
+    semantic_name: str = ""                                # from the VLM; never used for geometry
+    description: str = ""
     inside: str = ""          # container id it was put into (not separable in depth from it)
 
     def as_dict(self) -> dict:
         return {"id": self.id, "label": self.label, "color": self.color,
                 "position": [round(float(v), 3) for v in self.position],
                 "size": [round(float(v), 3) for v in self.size], "yaw": round(self.yaw, 3),
-                "confidence": round(self.confidence, 2), "held_by": self.held_by, "inside": self.inside}
+                "confidence": round(self.confidence, 2), "held_by": self.held_by, "inside": self.inside,
+                "semantic_name": self.semantic_name, "description": self.description}
 
 
 @dataclass

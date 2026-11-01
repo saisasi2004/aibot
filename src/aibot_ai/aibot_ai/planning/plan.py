@@ -81,6 +81,12 @@ class WorldItem:
     size: float = 0.0                 # largest footprint extent (m)
     held_by: str = ""
     inside: str = ""
+    semantic_name: str = ""           # what the camera model says it is
+    description: str = ""
+
+    @property
+    def position(self) -> tuple[float, float]:
+        return (self.x, self.y)
 
     @property
     def is_container(self) -> bool:

@@ -28,6 +28,7 @@ from std_srvs.srv import Trigger
 
 from aibot_msgs.action import ExecuteSkill
 from aibot_msgs.msg import DetectedObjectArray, PlaceTarget
+from aibot_msgs.srv import VlmQuery
 from aibot_teleop.utils.mode_gate import ModeGate
 
 from .backends.base import BackendError
@@ -48,13 +49,40 @@ class RosSkillRunner:
         items, holding = [], {"left": "", "right": ""}
         for o in (arr.objects if arr else []):
             items.append(WorldItem(o.id, o.label, o.color, o.pose.position.x, o.pose.position.y,
-                                   max(o.size.x, o.size.y), o.held_by, o.inside))
+                                   max(o.size.x, o.size.y), o.held_by, o.inside, o.semantic_name, o.description))
             if o.held_by in holding:
                 holding[o.held_by] = o.id
         return World(items, holding)
 
     def refresh(self) -> None:
         self.run(Step("scan"), threading.Event())
+
+    def _vlm(self, client, question: str, timeout: float) -> VlmQuery.Response | None:
+        """Blocking service call on a worker thread, with a time budget. None = no answer in time."""
+        if not client.wait_for_service(timeout_sec=0.2):
+            return None
+        done = threading.Event()
+        fut = client.call_async(VlmQuery.Request(question=question))
+        fut.add_done_callback(lambda _f: done.set())
+        if not done.wait(timeout):
+            client.remove_pending_request(fut)
+            return None
+        res = fut.result()
+        return res if res is not None and res.success else None
+
+    def verify(self, question: str) -> tuple[bool | None, str]:
+        n = self.node
+        t0 = time.monotonic()
+        res = self._vlm(n.vlm_verify, question, n.agent.cfg.describe_timeout)
+        if res is None:
+            return None, "no answer in time"
+        data = json.loads(res.answer_json)
+        n.get_logger().info(f"camera check in {time.monotonic() - t0:.1f} s: {question} -> {data.get('answer')}")
+        return data.get("answer"), str(data.get("reason", ""))
+
+    def describe(self, timeout: float) -> str:
+        res = self._vlm(self.node.vlm_describe, "", timeout)
+        return res.answer_json[:600] if res is not None else ""
 
     def goal(self, step: Step) -> ExecuteSkill.Goal:
         if step.skill == "place" and step.relation == "in":
@@ -119,7 +147,11 @@ class PlannerNode(Node):
         self.status_pub = self.create_publisher(String, "/aibot/planner/status", 5)
         self.skills = ActionClient(self, ExecuteSkill, "/aibot/skills/execute", callback_group=self.cb)
         self.runner = RosSkillRunner(self)
-        cfg = AgentConfig(p("max_replans", 2).value, p("repair_attempts", 1).value, p("history_turns", 3).value)
+        self.vlm_verify = self.create_client(VlmQuery, "/aibot/vlm/verify", callback_group=self.cb)
+        self.vlm_describe = self.create_client(VlmQuery, "/aibot/vlm/describe", callback_group=self.cb)
+        cfg = AgentConfig(p("max_replans", 2).value, p("repair_attempts", 1).value, p("history_turns", 3).value,
+                          p("vlm_check.verify", True).value, p("vlm_check.replan_on_disagree", False).value,
+                          p("vlm_check.describe_timeout", 10.0).value)
         self.agent = PlannerAgent(self.llm, self.runner, self.say, cfg, lambda m: self.get_logger().info(m))
         self.gate = ModeGate(self, "ai", True, self._on_mode_change)
         self._busy = threading.Lock()
