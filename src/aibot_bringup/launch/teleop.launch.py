@@ -32,7 +32,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import Command, FindExecutable, LaunchConfiguration
+from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
@@ -75,7 +75,9 @@ def generate_launch_description() -> LaunchDescription:
         package="aibot_teleop", executable="webcam_node", name="webcam_node", output="screen",
         condition=IfCondition(LaunchConfiguration("webcam")),
         parameters=[params, {"camera_id": arg("camera_id", int), "pose_model": LaunchConfiguration("pose_model"),
-                             "gui": arg("camera_gui", bool)}],
+                             "gui": arg("camera_gui", bool),
+                             # started in Physical AI: the camera stays closed until the switch to mimic
+                             "start_enabled": ParameterValue(PythonExpression(["'", LaunchConfiguration("mode"), "' != 'ai'"]), value_type=bool)}],
     )
     retarget = Node(
         package="aibot_teleop", executable="retarget_node", name="retarget_node", output="screen",

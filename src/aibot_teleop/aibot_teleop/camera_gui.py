@@ -40,6 +40,7 @@ from aibot_msgs.msg import DetectedObjectArray, GraspState  # noqa: E402
 from aibot_msgs.srv import SetMode  # noqa: E402
 
 from .utils.mode_gate import MODE_TOPIC, mode_qos  # noqa: E402
+from .utils.video_source import HEAD, WEBCAM, VideoSource  # noqa: E402
 
 SIDES = ("left", "right")
 OK, BAD, WARN = "#3ccf5a", "#e0463c", "#f0b429"
@@ -102,6 +103,7 @@ class CameraWindow(QtWidgets.QWidget):
 
         title = QtWidgets.QLabel("<b style='font-size:16px'>STAR1 teleop</b>")
         self.mode = "boot"
+        self.source = VideoSource()
         mode_row = QtWidgets.QHBoxLayout()
         self.mode_btns = {}
         group = QtWidgets.QButtonGroup(self)
@@ -219,13 +221,12 @@ class CameraWindow(QtWidgets.QWidget):
 
     # ------------------------------------------------------------------ slots
     def on_head(self, img: np.ndarray) -> None:
-        self._head_time = time.monotonic()
-        self._show(img)
+        if self.source.accepts(HEAD):
+            self._show(img)
 
     def on_frame(self, img: np.ndarray, stats: dict) -> None:
-        if self.mode == "ai" and time.monotonic() - getattr(self, "_head_time", 0.0) < 1.0:
-            return                                     # the head camera owns the view in AI mode
-        self._show(img, stats)
+        if self.source.accepts(WEBCAM):
+            self._show(img, stats)
 
     def _show(self, img: np.ndarray, stats: dict | None = None) -> None:
         stats = stats or {}
@@ -300,8 +301,9 @@ class CameraWindow(QtWidgets.QWidget):
 
     def on_mode(self, mode: str) -> None:
         self.chat_box.setVisible(mode == "ai")
+        source = self.source.set_mode(mode)
         if hasattr(self.node, "head_camera"):
-            self.node.head_camera(mode == "ai")
+            self.node.head_camera(source == HEAD)    # stays on while switching or stopped from AI
         self.mode = mode
         for key, b in self.mode_btns.items():
             b.setChecked(key == mode)

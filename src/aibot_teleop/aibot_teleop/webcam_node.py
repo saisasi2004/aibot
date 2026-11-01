@@ -6,7 +6,8 @@ Publishes
   /teleop/hand_landmarks/right  aibot_msgs/HandLandmarks   operator's right hand, 21 points
   /teleop/debug_image           sensor_msgs/Image (bgr8)   overlay, only while someone subscribes
 Service
-  /teleop/webcam_enable         std_srvs/SetBool           pause/resume MediaPipe (Physical AI mode)
+  /teleop/webcam_enable         std_srvs/SetBool           false: stop MediaPipe and release the camera
+                                                           device (light off); true: reopen, with retries
 
 With gui:=true (default in the bringup) a PyQt5 window shows the annotated video plus teleop
 status and controls (camera_gui.py).
@@ -184,7 +185,13 @@ class WebcamNode(Node):
         self.body_pub = self.create_publisher(BodyLandmarks, "/teleop/body_landmarks", 5)
         self.hand_pubs = {s: self.create_publisher(HandLandmarks, f"/teleop/hand_landmarks/{s}", 5) for s in SIDES}
         self.debug_pub = self.create_publisher(Image, "/teleop/debug_image", 1)
-        self.inference_enabled = True
+        self.inference_enabled = bool(p("start_enabled", True).value)
+        self._cam_args = (self.camera_id, width, height, fps, self.get_clock())
+        self._cam_lock = threading.Lock()
+        self._cam_generation = 0
+        self.reopen_attempts: int = p("reopen_attempts", 10).value
+        self.reopen_delay: float = p("reopen_delay", 0.5).value
+        self.camera: LatestFrameCamera | None = None
         self.create_service(SetBool, "/teleop/webcam_enable", self._srv_enable)
 
         # GUI hook: called from the processing thread with (annotated BGR frame, stats dict).
@@ -193,9 +200,10 @@ class WebcamNode(Node):
                                         "body": 0.0, "left": 0.0, "right": 0.0}
         self.tracking = {"body": False, "left": False, "right": False}
 
-        self.camera = LatestFrameCamera(self.camera_id, width, height, fps, self.get_clock())
+        if self.inference_enabled:          # started for Physical AI: the camera stays closed until mimic
+            self.camera = LatestFrameCamera(*self._cam_args)
         self.get_logger().info(
-            f"camera /dev/video{self.camera_id} {self.camera.width}x{self.camera.height} @ {fps} fps requested; "
+            f"camera /dev/video{self.camera_id} {'open' if self.camera else 'closed until mimic'} @ {fps} fps requested; "
             f"pose model '{pose_model}', {self.num_hands} hands, GUI {'on' if self.gui_enabled else 'off'}")
 
         self._last_ts_ms = 0
@@ -225,10 +233,18 @@ class WebcamNode(Node):
 
     # ------------------------------------------------------------------ main loop
     def _process_loop(self) -> None:
-        seq = 0
+        seq, used = 0, None
         while not self._stop.is_set():
-            got = self.camera.wait_newer(seq, timeout=1.0)
+            cam = self.camera
+            if cam is None:                     # released in Physical AI mode
+                self._stop.wait(0.05)
+                continue
+            if cam is not used:                 # reopened: its frame counter starts again
+                seq, used = 0, cam
+            got = cam.wait_newer(seq, timeout=1.0)
             if got is None:
+                if self.camera is not cam:
+                    continue
                 if not self._stop.is_set():
                     self.get_logger().warn("no camera frames for 1 s", throttle_duration_sec=5.0)
                 continue
@@ -241,10 +257,50 @@ class WebcamNode(Node):
                 self.get_logger().error(f"frame processing failed: {exc!r}", throttle_duration_sec=2.0)
 
     def _srv_enable(self, req: SetBool.Request, res: SetBool.Response) -> SetBool.Response:
-        self.inference_enabled = bool(req.data)
-        self.get_logger().info(f"MediaPipe inference {'resumed' if req.data else 'paused'}")
-        res.success, res.message = True, "inference on" if req.data else "inference paused"
+        """False releases the V4L2 device, so its light goes off and no frame exists at all; true
+        reopens it in the background (opening takes up to a second, the caller must not wait)."""
+        on = bool(req.data)
+        self.inference_enabled = on
+        with self._cam_lock:
+            self._cam_generation += 1
+            generation = self._cam_generation
+            cam = None
+            if not on:
+                cam, self.camera = self.camera, None
+                self.tracking = {"body": False, "left": False, "right": False}
+            need_open = on and self.camera is None
+        self._close_camera(cam)
+        if need_open:
+            threading.Thread(target=self._reopen, args=(generation,), name="camera_open", daemon=True).start()
+        self.get_logger().info("camera on, inference resumed" if on else "camera released, inference stopped")
+        res.success, res.message = True, "camera reopening" if need_open else ("camera on" if on else "camera released")
         return res
+
+    def _close_camera(self, cam: "LatestFrameCamera | None") -> None:
+        if cam is not None:
+            cam.close()
+
+    def _reopen(self, generation: int) -> None:
+        for attempt in range(1, self.reopen_attempts + 1):
+            if self._stop.is_set() or generation != self._cam_generation:
+                return
+            try:
+                t0 = time.monotonic()
+                cam = LatestFrameCamera(*self._cam_args)
+            except RuntimeError as exc:
+                self.get_logger().warn(f"camera reopen {attempt}/{self.reopen_attempts}: {exc}")
+                self._stop.wait(self.reopen_delay)
+                continue
+            with self._cam_lock:
+                if generation == self._cam_generation:
+                    self.camera = cam
+                    cam = None
+            if cam is not None:                 # disabled again while opening
+                cam.close()
+                return
+            self.get_logger().info(f"camera reopened in {time.monotonic() - t0:.2f} s (attempt {attempt})")
+            return
+        self.get_logger().error(f"could not reopen /dev/video{self.camera_id}: mimic has no video")
 
     def _process(self, frame: np.ndarray, stamp: Time) -> None:
         if not self.inference_enabled:
@@ -403,9 +459,11 @@ class WebcamNode(Node):
         if dt < 2.0:
             return
         n = a["frames"]
+        cam = self.camera
+        captured = cam.frames_captured if cam is not None else self._acc_cam0
         self.stats = {"fps": n / dt, "infer_ms": a["infer_ms"] / n, "latency_ms": a["latency_ms"] / n,
                       "body": a["body"] / n, "left": a["left"] / n, "right": a["right"] / n,
-                      "camera_fps": (self.camera.frames_captured - self._acc_cam0) / dt}
+                      "camera_fps": max(0, captured - self._acc_cam0) / dt}
         if not hasattr(self, "_last_log") or time.monotonic() - self._last_log > 10.0:
             self._last_log = time.monotonic()
             s = self.stats
@@ -415,11 +473,14 @@ class WebcamNode(Node):
                 f"L-hand {100 * s['left']:3.0f}% R-hand {100 * s['right']:3.0f}%")
         self._acc = dict.fromkeys(a, 0)
         self._acc_t0 = time.monotonic()
-        self._acc_cam0 = self.camera.frames_captured
+        self._acc_cam0 = captured
 
     def shutdown(self) -> None:
         self._stop.set()
-        self.camera.close()
+        with self._cam_lock:
+            self._cam_generation += 1
+            cam, self.camera = self.camera, None
+        self._close_camera(cam)
         self._worker.join(timeout=2.0)
         self._hand_pool.shutdown(wait=True)
         self.pose.close()
