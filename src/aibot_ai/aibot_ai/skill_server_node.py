@@ -96,8 +96,9 @@ class Held:
 
 
 def _wo(d: DetectedObject) -> WorldObject:
+    q = d.pose.orientation
     return WorldObject(d.id, d.label, np.array([d.pose.position.x, d.pose.position.y, d.pose.position.z]),
-                       np.array([d.size.x, d.size.y, d.size.z]))
+                       np.array([d.size.x, d.size.y, d.size.z]), math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z)))
 
 
 def _xyz(d: DetectedObject) -> np.ndarray:

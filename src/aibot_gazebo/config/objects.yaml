@@ -28,7 +28,10 @@ table:
   place_x: [0.32, 0.54]
   place_y: [-0.15, 0.15]
   edge_margin: 0.02        # m, keep footprints this far inside the table edge
-  clearance: 0.025         # m, minimum gap between object footprints
+  clearance: 0.025         # m, minimum gap between object footprints in random scenes
+  place_clearance: 0.015   # m, between a placed object and its neighbours (rotated footprints)
+  reach_x: [0.30, 0.56]    # where object centres may be put down: wider than the random-scene area,
+  reach_y: [-0.15, 0.15]   # inside the table edge; the arm's collision check has the last word
 
 parking:                   # unused slots wait on the floor behind the robot, out of every view
   origin: [-2.0, -1.5]

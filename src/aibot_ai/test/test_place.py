@@ -11,7 +11,7 @@ from aibot_ai.geometry.place import PlaceResolver, WorldObject, regions
 from aibot_ai.skills.matching import match
 
 TABLE = {"top_z": 0.98, "x": [0.20, 0.60], "y": [-0.18, 0.18], "place_x": [0.32, 0.54], "place_y": [-0.15, 0.15],
-         "edge_margin": 0.02, "clearance": 0.025}
+         "edge_margin": 0.02, "clearance": 0.025, "place_clearance": 0.015}
 
 
 def obj(id_, label, x, y, size=(0.05, 0.05, 0.05)):
@@ -27,7 +27,7 @@ R = PlaceResolver(TABLE)
 
 
 def _free(x, y, others, r=HELD.radius):
-    return all(math.hypot(x - o.position[0], y - o.position[1]) >= r + o.radius + TABLE["clearance"] - 1e-9 for o in others)
+    return all(o.gap_to(x, y) >= r + TABLE["place_clearance"] - 1e-9 for o in others)
 
 
 def test_on_targets_reference_top():
@@ -96,7 +96,7 @@ def test_regions_layout_and_resolution():
 
 def test_at_xy_checks_area_and_occupancy():
     assert R.resolve("at_xy", "", "", (0.50, 0.12), HELD, SCENE).ok
-    assert R.resolve("at_xy", "", "", (0.36, -0.10), HELD, SCENE).reason_code == "PLACE_BLOCKED"   # bin rim
+    assert R.resolve("at_xy", "", "", (0.40, -0.10), HELD, SCENE).reason_code == "PLACE_BLOCKED"   # bin rim
     assert R.resolve("at_xy", "", "", (0.70, 0.0), HELD, SCENE).reason_code == "UNREACHABLE"
     assert R.resolve("at_xy", "", "", (0.42, 0.01), HELD, SCENE).reason_code == "PLACE_BLOCKED"
 
@@ -157,3 +157,23 @@ OBJS = [P("red_cube_1", "cube", "red", (0.40, 0.10, 1.0)), P("red_cube_2", "cube
 ])
 def test_match(text, ids):
     assert [o.id for o in match(text, OBJS)] == ids
+
+
+def test_footprints_are_rectangles_not_circumscribed_circles():
+    b = obj("b", "bin", 0.45, 0.0, (0.13, 0.13, 0.06))
+    assert b.gap_to(0.45, 0.10) == pytest.approx(0.035)        # 3.5 cm beyond the bin's side
+    assert b.gap_to(0.45, 0.0) == 0.0
+    rot = WorldObject("r", "box", np.array([0.4, 0.0, 1.0]), np.array([0.2, 0.02, 0.1]), math.pi / 2)
+    assert rot.gap_to(0.4, 0.09) == 0.0 and rot.gap_to(0.42, 0.0) == pytest.approx(0.01)   # long side along y
+    assert obj("m", "mug", 0.4, 0.0, (0.076, 0.076, 0.09)).gap_to(0.5, 0.0) == pytest.approx(0.062)
+
+
+def test_realistic_scene_has_room_for_regions_and_relations():
+    """5 objects like a real scene (logged "region is full" and "no free spot" every time)."""
+    held = obj("green_box_1", "box", 0, 0, (0.06, 0.04, 0.10))
+    world = [obj("bin", "bin", 0.37, 0.03, (0.13, 0.13, 0.06)), obj("mug", "mug", 0.54, -0.04, (0.076, 0.076, 0.09)),
+             obj("cube", "cube", 0.33, -0.13, (0.04, 0.04, 0.04)), obj("ball", "ball", 0.52, 0.07, (0.06, 0.06, 0.06))]
+    free = [r for r in regions(TABLE) if R.resolve("at_region", "", r, (0, 0), held, world + [held]).ok]
+    assert len(free) >= 7, free
+    assert R.resolve("right_of", "mug", "", (0, 0), held, world + [held]).ok
+    assert R.resolve("behind", "cube", "", (0, 0), held, world + [held]).ok

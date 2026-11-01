@@ -43,6 +43,21 @@ class WorldObject:
         major, minor = float(self.size[0]), float(self.size[1])
         return 0.5 * major if self.label in ROUND_LABELS else 0.5 * math.hypot(major, minor)
 
+    def gap_to(self, x: float, y: float) -> float:
+        """Distance from a point to this object's footprint: its rotated rectangle, or a circle for
+        round things. The circumscribed circle made a 13 cm bin block 15 cm all around it."""
+        dx, dy = x - float(self.position[0]), y - float(self.position[1])
+        if self.label in ROUND_LABELS:
+            return max(0.0, math.hypot(dx, dy) - 0.5 * float(self.size[0]))
+        c, s_ = math.cos(self.yaw), math.sin(self.yaw)
+        lx, ly = c * dx + s_ * dy, -s_ * dx + c * dy
+        return math.hypot(max(0.0, abs(lx) - 0.5 * float(self.size[0])), max(0.0, abs(ly) - 0.5 * float(self.size[1])))
+
+    @property
+    def half_extent(self) -> float:
+        """Half the footprint's longest side: how far the object reaches along a principal axis."""
+        return 0.5 * float(self.size[0])
+
     @property
     def top_z(self) -> float:
         return float(self.position[2] + 0.5 * self.size[2])
@@ -74,20 +89,20 @@ def regions(table: dict, inset: float = 0.03) -> dict[str, tuple[float, float]]:
 
 
 class PlaceResolver:
-    def __init__(self, table: dict, step: float = 0.02, max_extra: float = 0.08, gap: float = 0.01) -> None:
+    def __init__(self, table: dict, step: float = 0.02, max_extra: float = 0.12, gap: float = 0.005) -> None:
         """step/max_extra: how far the search slides away from the nominal spot; gap: extra air
-        between the placed object and its reference beyond the table clearance."""
+        between the placed object and its reference beyond the placing clearance. The arm's own
+        collision check still decides whether a free spot can actually be reached."""
         self.table, self.step, self.max_extra, self.gap = table, step, max_extra, gap
-        self.clearance = float(table.get("clearance", 0.025))
+        self.clearance = float(table.get("place_clearance", table.get("clearance", 0.025)))
         self.regions = regions(table)
 
     def in_area(self, x: float, y: float) -> bool:
-        (x0, x1), (y0, y1) = self.table["place_x"], self.table["place_y"]
+        (x0, x1), (y0, y1) = self.table.get("reach_x", self.table["place_x"]), self.table.get("reach_y", self.table["place_y"])
         return x0 <= x <= x1 and y0 <= y <= y1
 
     def is_free(self, x: float, y: float, radius: float, others: list[WorldObject]) -> bool:
-        return all(math.hypot(x - o.position[0], y - o.position[1]) >= radius + o.radius + self.clearance
-                   for o in others)
+        return all(o.gap_to(x, y) >= radius + self.clearance for o in others)
 
     def _search(self, nominal: tuple[float, float], radius: float, others: list[WorldObject],
                 direction: tuple[float, float] | None) -> list[tuple[float, float]]:
@@ -146,7 +161,7 @@ class PlaceResolver:
                     return PlaceSolution(False, "INVALID", f"{held.id} is too wide to balance on {ref.id}")
                 return PlaceSolution(True, "OK", f"on {ref.id}", [(float(ref.position[0]), float(ref.position[1]))], ref.top_z)
             d = DIRECTIONS[relation]
-            dist = r + ref.radius + self.clearance + self.gap
+            dist = r + ref.half_extent + self.clearance + self.gap
             nominal = (float(ref.position[0]) + d[0] * dist, float(ref.position[1]) + d[1] * dist)
             cands = self._search(nominal, r, others, d)
             if cands:
@@ -173,7 +188,7 @@ class PlaceResolver:
     def free_spot(self, held: WorldObject, objects: list[WorldObject], prefer: tuple[float, float]) -> PlaceSolution:
         """move_aside: free spots ordered by distance from `prefer` (the side of the holding arm)."""
         others = [o for o in objects if o.id != held.id]
-        (x0, x1), (y0, y1) = self.table["place_x"], self.table["place_y"]
+        (x0, x1), (y0, y1) = self.table.get("reach_x", self.table["place_x"]), self.table.get("reach_y", self.table["place_y"])
         grid = [(float(x), float(y)) for x in np.arange(x0, x1 + 1e-9, self.step) for y in np.arange(y0, y1 + 1e-9, self.step)]
         grid = [p for p in grid if self.is_free(p[0], p[1], held.radius, others)
                 and math.hypot(p[0] - held.position[0], p[1] - held.position[1]) > 2 * held.radius + self.clearance]

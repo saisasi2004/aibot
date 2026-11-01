@@ -104,8 +104,14 @@ def stop_test(n: "Check", trials: int, how: str) -> None:
         if not objs:
             continue
         gh = n.skills.send_goal_async(ExecuteSkill.Goal(skill="pick", object_id=objs[0].id))
-        time.sleep(4.0)                                    # well inside the approach motion
-        moving = len(n.cmd_times) and time.monotonic() - n.cmd_times[-1] < 0.1
+        # interrupt the arm mid-motion, not during planning or settling: wait for a burst of commands
+        wait_until = time.monotonic() + 40.0
+        time.sleep(1.0)
+        moving = False
+        while not moving and time.monotonic() < wait_until:
+            recent = [t for t in n.cmd_times[-30:] if time.monotonic() - t < 0.2]
+            moving = len(recent) >= 5
+            time.sleep(0.005)
         t0 = time.monotonic()
         if how == "stop":
             n.stop.call_async(Trigger.Request())
@@ -119,7 +125,9 @@ def stop_test(n: "Check", trials: int, how: str) -> None:
         while res is not None and not res.done():
             time.sleep(0.05)
         code = res.result().result.reason_code if res is not None else "?"
-        print(f"  {how} {k}: was moving {bool(moving)}, last command {last * 1000:.0f} ms after the request, skill -> {code}")
+        print(f"  {how} {k}: was moving {moving}, last command {last * 1000:.0f} ms after the request, skill -> {code}")
+        if not moving:
+            lat.pop()                                      # says nothing about stopping a motion
     if lat:
         print(f"{how}: last command after request: max {max(lat) * 1000:.0f} ms, mean {np.mean(lat) * 1000:.0f} ms "
               f"(n={len(lat)}, budget 100 ms) -> {'PASS' if max(lat) <= 0.1 else 'FAIL'}")
