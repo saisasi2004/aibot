@@ -4,10 +4,10 @@ project(aibot_description)
 find_package(ament_cmake REQUIRED)
 
 # The model files are fetched and generated, not committed by hand. Fail early with a clear hint
-# instead of ament's "can't find .../config" when scripts/fetch_star1.sh has not been run yet.
+# instead of ament's "can't find .../config" when the model files are missing.
 foreach(generated
     LICENSE
-    urdf/star1_original.urdf
+    urdf/robot_original.urdf
     urdf/aibot_body.xacro
     config/joint_limits.yaml
     meshes/visual/base_link.STL
@@ -15,7 +15,7 @@ foreach(generated
   if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${generated}")
     message(FATAL_ERROR
       "aibot_description: missing ${generated}.\n"
-      "Run ./scripts/fetch_star1.sh from the workspace root first, then rebuild.")
+      "Restore them with git from the workspace root, then rebuild.")
   endif()
 endforeach()
 

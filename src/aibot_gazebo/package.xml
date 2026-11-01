@@ -3,7 +3,7 @@
 <package format="3">
   <name>aibot_gazebo</name>
   <version>0.1.0</version>
-  <description>Gazebo Harmonic pick-table world, objects and ros2_control setup for STAR1 teleop.</description>
+  <description>Gazebo Harmonic pick-table world, objects and ros2_control setup for Aibot teleop.</description>
   <maintainer email="gampassv2004@gmail.com">Gampa Sai Sasivardhan</maintainer>
   <license>BSD-3-Clause</license>
 

@@ -1,4 +1,4 @@
-"""Webcam teleoperation of the STAR1 upper body in Gazebo: one command for everything.
+"""Webcam teleoperation of the robot's upper body in Gazebo: one command for everything.
 
     ros2 launch aibot_bringup teleop.launch.py
     ros2 launch aibot_bringup teleop.launch.py mirror:=true use_ik:=false camera_id:=0

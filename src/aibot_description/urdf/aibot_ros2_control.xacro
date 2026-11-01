@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<!-- ros2_control interfaces for the 43 upper-body joints of STAR1:
+<!-- ros2_control interfaces for the 43 upper-body joints of the robot:
      waist 3 + head 2 + arms 7x2 + hands 12x2. Legs are locked (fixed joints) and not listed.
 
      Every joint exposes a position command interface and position/velocity state interfaces.

@@ -1,1 +1,1 @@
-"""Webcam teleoperation of the RobotEra STAR1 upper body."""
+"""Webcam teleoperation of the aibot upper body."""

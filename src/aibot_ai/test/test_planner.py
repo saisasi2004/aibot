@@ -278,4 +278,4 @@ def test_small_talk_skips_the_scan_but_tasks_do_not():
 
 def test_prompt_speaks_as_the_robot():
     from aibot_ai.planning.prompt import SYSTEM
-    assert "You are STAR1" in SYSTEM and "never say you are an AI" in SYSTEM
+    assert "You are Aibot" in SYSTEM and "never say you are an AI" in SYSTEM

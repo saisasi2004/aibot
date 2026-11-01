@@ -1,11 +1,11 @@
 <?xml version="1.0"?>
-<!-- RobotEra STAR1 prepared for fixed-base upper-body teleoperation.
+<!-- aibot prepared for fixed-base upper-body teleoperation.
 
      xacro aibot.urdf.xacro                       RViz only (no ros2_control tag)
      xacro aibot.urdf.xacro sim_mode:=mock        ros2_control with mock hardware (no physics)
      xacro aibot.urdf.xacro sim_mode:=gazebo controllers_file:=/abs/controllers.yaml
 -->
-<robot name="star1" xmlns:xacro="http://www.ros.org/wiki/xacro">
+<robot name="aibot" xmlns:xacro="http://www.ros.org/wiki/xacro">
 
   <xacro:arg name="sim_mode" default="none"/>          <!-- none | mock | gazebo -->
   <xacro:arg name="fixed_base" default="true"/>        <!-- weld the pelvis to the world -->

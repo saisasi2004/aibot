@@ -3,7 +3,7 @@
 <package format="3">
   <name>aibot_msgs</name>
   <version>0.1.0</version>
-  <description>Interfaces for STAR1 teleop and Physical AI mode: landmarks, grasp state, mode switching, skills.</description>
+  <description>Interfaces for Aibot teleop and Physical AI mode: landmarks, grasp state, mode switching, skills.</description>
   <maintainer email="gampassv2004@gmail.com">Gampa Sai Sasivardhan</maintainer>
   <license>BSD-3-Clause</license>
 

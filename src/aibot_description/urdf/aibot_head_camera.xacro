@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
-<!-- Head RGB-D camera for the Physical AI mode, mounted on STAR1's RealSense-style bracket.
+<!-- Head RGB-D camera for the Physical AI mode, mounted on the robot's RealSense-style bracket.
 
-     head_rs_link (upstream, fixed to neck_pitch_link) has its z axis along the optical axis,
+     head_rs_link (source, fixed to neck_pitch_link) has its z axis along the optical axis,
      pointing forward and 30 deg down, and its 12 cm long axis left-right, like a RealSense D4xx
      frame. Added frames:
        head_camera_link           x forward, y left, z up: Gazebo cameras look along +x
@@ -9,7 +9,7 @@
      With neck pitch p the camera looks (30 deg + p + mount_pitch) below horizontal. Verified in
      Gazebo: at the AI home/scan head pitch 0.52 rad (limit 0.54 minus the 0.02 rad margin) the whole
      table, front edge included, and every object is in view; at 0.45 rad the front 5 cm are cut.
-     So the upstream mount is kept (mount_pitch 0).
+     So the source mount is kept (mount_pitch 0).
 
      The URDF->SDF converter lumps these fixed links into neck_pitch_link; the sensor is moved
      with them and its images carry frame_id head_camera_optical_frame (gz_frame_id). -->

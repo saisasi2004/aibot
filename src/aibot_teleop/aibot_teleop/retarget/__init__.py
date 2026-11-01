@@ -1,1 +1,1 @@
-"""Human landmarks -> STAR1 joint targets: body frames, arms, hands, torso and head."""
+"""Human landmarks -> the robot's joint targets: body frames, arms, hands, torso and head."""

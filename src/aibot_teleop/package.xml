@@ -4,7 +4,7 @@
   <name>aibot_teleop</name>
   <version>0.1.0</version>
   <description>
-    Webcam teleoperation of the STAR1 upper body: MediaPipe landmarks, retargeting to joint
+    Webcam teleoperation of the robot's upper body: MediaPipe landmarks, retargeting to joint
     commands, and grasp management. MediaPipe itself comes from pip (requirements.txt) into
     ~/aibot/.venv, because it has no rosdep key.
   </description>

@@ -1,6 +1,6 @@
 """Skill IK: put a hand's grasp point at a target with the palm down, plus a reachability check.
 
-Chain: world -> waist (yaw, roll, pitch) -> 7 arm joints -> {side}_hand_link (10 DOF). STAR1's
+Chain: world -> waist (yaw, roll, pitch) -> 7 arm joints -> {side}_hand_link (10 DOF). The robot's
 arm is only 0.40 m shoulder-to-wrist and its shoulders are 0.35 m above the table, so the back
 of the table is out of reach without leaning; the waist joins in, held back by a posture task
 (waist roll is kept near 0, yaw/pitch are used only when the arm alone cannot reach).

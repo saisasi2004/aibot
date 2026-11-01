@@ -1,4 +1,4 @@
-"""View the STAR1 model in RViz and move every controllable joint with sliders.
+"""View the robot model in RViz and move every controllable joint with sliders.
 
     ros2 launch aibot_description display.launch.py
     ros2 launch aibot_description display.launch.py simple_collision:=false gui:=false

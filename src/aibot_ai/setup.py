@@ -20,7 +20,7 @@ setup(
     zip_safe=True,
     maintainer="Gampa Sai Sasivardhan",
     maintainer_email="gampassv2004@gmail.com",
-    description="Physical AI mode for STAR1: mode manager, perception, skills, LLM planner.",
+    description="Physical AI mode for aibot: mode manager, perception, skills, LLM planner.",
     license="BSD-3-Clause",
     tests_require=["pytest"],
     entry_points={

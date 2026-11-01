@@ -1,9 +1,9 @@
-# aibot: webcam teleoperation and Physical AI for the RobotEra STAR1 humanoid
+# aibot: webcam teleoperation and Physical AI for a humanoid robot
 
 Two modes, switchable at runtime from the camera window (or `mode:=mimic|ai`):
 
 - **Mimic** (default): move your arms, hands, torso and head in front of a laptop webcam and the
-  STAR1 upper body copies you in Gazebo. Close your hand near an object to pick it up.
+  robot's upper body copies you in Gazebo. Close your hand near an object to pick it up.
 - **Physical AI:** type a task ("pick the red cube and put it in the bin") or just say hi. The robot
   looks at the table with its head RGB-D camera, an LLM plans it as skills, or designs a gesture
   as validated data, and deterministic code does the picking, placing and moving. Models are
@@ -25,7 +25,6 @@ webcam ─► webcam_node ──landmarks──► retarget_node ──Float64Mu
 
 ```bash
 cd ~/aibot
-./scripts/fetch_star1.sh          # STAR1 model -> src/aibot_description (temp clone, deleted afterwards)
 ./scripts/setup_env.sh            # apt + rosdep + .venv with MediaPipe + model download (asks for sudo once)
 source /opt/ros/jazzy/setup.bash && source .venv/bin/activate
 python3 -m colcon build --symlink-install
@@ -98,8 +97,7 @@ aibot/
 ├── scripts/
 │   ├── setup_env.sh          apt, rosdep, .venv (--system-site-packages), MediaPipe models
 │   ├── setup_ai.sh           Ollama check + model pulls, optional YOLO-World, import check
-│   ├── fetch_star1.sh        pinned clone of roboterax/models into a temp dir, copy, generate, delete
-│   ├── generate_description.py   (extra) upstream URDF -> aibot_body.xacro, collision hulls, joint_limits.yaml
+│   ├── generate_description.py   (extra) source URDF -> aibot_body.xacro, collision hulls, joint_limits.yaml
 │   ├── generate_objects.py   (extra) objects.yaml -> object model SDFs with exact inertias
 │   ├── check_mode_switch.py  P1 acceptance: 10 mimic<->AI switches, command continuity, welds
 │   ├── check_scene_reset.py  P3 acceptance: 20 seeded resets, drift
@@ -107,7 +105,7 @@ aibot/
 │   ├── check_pick_place.py   P5: pick + place over seeded scenes, scored with ground truth
 │   └── eval_ai.py            P6/P7: natural-language commands in the sim (CSV + table), --e2e demo
 └── src/
-    ├── aibot_description/    STAR1 model: original URDF + meshes (BSD-3, see LICENSE), xacro,
+    ├── aibot_description/    robot model: original URDF + meshes (BSD-3, see LICENSE), xacro,
     │                         ros2_control, aibot_head_camera.xacro (head RGB-D camera)
     ├── aibot_gazebo/         pick_table world, objects.yaml (9-object pool + bin/tray), controllers, bridge
     ├── aibot_msgs/           landmarks, GraspState/Status, DetectedObject(Array), PlaceTarget,
@@ -123,7 +121,7 @@ aibot/
 
 Beyond the planned layout: `scripts/generate_description.py` (the body xacro is ~2,000 generated
 lines, so nothing in it is typed by hand), `aibot_description/LICENSE` (the BSD-3 notice must
-travel with RobotEra's meshes) and `aibot_teleop/camera_gui.py`.
+travel with the meshes) and `aibot_teleop/camera_gui.py`.
 
 ## Install details
 
@@ -267,16 +265,16 @@ closed in AI mode, so there's nothing to show.
 ## How it works: mimic mode
 
 ### Model preparation (`aibot_description`)
-- **Re-rooted at the pelvis.** The upstream root `base_link` is the *torso*; the waist chain hangs
+- **Re-rooted at the pelvis.** The source root `base_link` is the *torso*; the waist chain hangs
   below it and the legs hang from `waist_yaw_link`. Fixing `base_link` would make the waist swing
   the legs, so the chain is inverted. Axes are negated so each joint value means the same pose as
-  on the real robot. This was verified against upstream forward kinematics on 200 random poses,
+  on the real robot. This was verified against source forward kinematics on 200 random poses,
   with a maximum error of 1e-15.
 - **Legs locked** as fixed joints at the README upright pose (hip 30°, knee -60°, ankle 30°;
   the zero pose is a crouch). The pelvis is welded to the world with the soles 5 mm above the floor.
 - **Collisions:** convex hulls of the visual meshes (426k → 39.6k triangles).
 - **Fixed for simulation:**
-  - The upstream finger friction (1 Nm) exceeds the finger effort limits (0.4–1.1 Nm), so the
+  - The source finger friction (1 Nm) exceeds the finger effort limits (0.4–1.1 Nm), so the
     fingers could never move; friction and damping are overridden.
   - One inertia that violated the triangle inequality (`left_hip_pitch_link`) is balanced.
 - **ros2_control:** position command interfaces on 43 joints (waist 3, head 2, arms 14, hands 24).
@@ -297,7 +295,7 @@ no overshoot, and it holds against gravity. Measured with 30 Hz streamed sinusoi
    - Mirror mode reflects y and swaps left/right before anything else.
    - The chest frame comes from the shoulder line plus the spine when the hips are visible
      (with hysteresis), otherwise the camera's vertical.
-2. **Arms, direct mode (default).** STAR1's arm is pitch Y → roll X → yaw Z → elbow Y →
+2. **Arms, direct mode (default).** The robot's arm is pitch Y → roll X → yaw Z → elbow Y →
    elbow-yaw Z → wrist Y → wrist X, so the angles are read back stage by stage from the
    upper-arm, forearm and hand directions:
    - `sr = asin(u_y)`, `sp = atan2(-u_x, -u_z)`; then flex/yaw from the forearm; then ZYX Euler of the hand.
@@ -306,7 +304,7 @@ no overshoot, and it holds against gravity. Measured with 30 Hz streamed sinusoi
 3. **Arms, IK mode.**
    - Damped least squares on the URDF chain with three tasks: wrist position (scaled by your
      calibrated arm lengths), an elbow-position hint and hand orientation.
-   - It is seeded every frame by the direct solution. STAR1's shoulder is singular in the
+   - It is seeded every frame by the direct solution. The robot's shoulder is singular in the
      T-pose (pitch axis along the arm), where a free solver cannot move the elbow forward.
    - Trade-off: IK reaches where your scaled wrist is (better for grasping with different
      proportions), but it passes MediaPipe's depth noise straight into the reach and needs
@@ -316,7 +314,7 @@ no overshoot, and it holds against gravity. Measured with 30 Hz streamed sinusoi
    These map to 12 joints, with signs verified on the URDF. The grasp state uses hysteresis
    (close > 0.6, open < 0.4, 3 frames).
 5. **Torso and head.** The waist is the chest rotation relative to the calibrated neutral,
-   decomposed ZXY to match STAR1's re-rooted waist. Head yaw/pitch come from the
+   decomposed ZXY to match the robot's re-rooted waist. Head yaw/pitch come from the
    ear-midpoint → nose direction.
 6. **Filtering.** One-Euro filter (holds joints whose tracking is lost) → URDF limits (2 cm
    margin) → velocity limits → dead-band. Processing runs on landmark arrival, with no
@@ -494,9 +492,9 @@ Physical AI (headless commands; the GUI works the same with the windows on):
 | Symptom | Cause | Fix (applied here) |
 |---|---|---|
 | White/missing meshes in Gazebo | `package://` not resolvable by gz | `sim.launch.py` appends `install/aibot_description/share` to `GZ_SIM_RESOURCE_PATH` |
-| Robot huge or tiny | mesh units | STAR1 meshes are metres; no scale needed |
-| Waist moves the legs | upstream root is the torso | re-rooted at `waist_yaw_link` |
-| Fingers never move | upstream joint friction > effort limit | sim damping 0.05, friction 0 |
+| Robot huge or tiny | mesh units | The robot meshes are metres; no scale needed |
+| Waist moves the legs | source root is the torso | re-rooted at `waist_yaw_link` |
+| Fingers never move | source joint friction > effort limit | sim damping 0.05, friction 0 |
 | A joint moves the wrong way | convention mismatch | `aibot_teleop/config/joint_mapping.yaml` → `corrections: {joint: {sign: -1}}` |
 | Controller fails to load | joint name / type typos | names come from the URDF; `ros2 control list_hardware_interfaces` |
 | Arms frozen after spawn | DetachableJoint welds all objects at startup | grasp manager detaches; plugins only with `grasping:=true` |
@@ -512,5 +510,5 @@ Physical AI (headless commands; the GUI works the same with the windows on):
 
 ## License
 
-Code: BSD-3-Clause. STAR1 URDF and meshes © 2024 RobotEra, BSD 3-Clause
-(`src/aibot_description/LICENSE`), from https://github.com/roboterax/models.
+Code: BSD-3-Clause. The robot model files (URDF and meshes) are under BSD 3-Clause; their
+copyright notice is in `src/aibot_description/LICENSE`, which must stay with them.

@@ -39,7 +39,7 @@ def test_canonical_poses():
     # left T-pose: roll +90 deg; elbow straight
     q = solve_arm(np.array([0, 1.0, 0]), np.array([0, 1.0, 0]), None, zero)
     assert math.isclose(q[1], math.pi / 2, abs_tol=1e-9) and abs(q[3]) < 1e-6
-    # hanging arm, forearm forward: elbow -90 deg (STAR1 flexes forward with negative elbow_pitch)
+    # hanging arm, forearm forward: elbow -90 deg (the robot flexes forward with negative elbow_pitch)
     q = solve_arm(np.array([0, 0, -1.0]), np.array([1.0, 0, 0]), None, zero)
     assert math.isclose(q[3], -math.pi / 2, abs_tol=1e-9) and abs(q[0]) < 1e-9
 
@@ -51,7 +51,7 @@ def test_singularity_holds_previous_pitch():
 
 
 def test_hand_frame_matches_robot_convention():
-    """Arm hanging, palm towards the thigh, thumb forward -> identity, like STAR1 at q = 0."""
+    """Arm hanging, palm towards the thigh, thumb forward -> identity, like the robot at q = 0."""
     pts = np.zeros((21, 3))
     pts[9] = [0, 0, -0.09]          # middle MCP: fingers point down
     pts[5] = [0.02, 0, -0.085]      # index MCP: forward
@@ -66,7 +66,7 @@ def test_waist_decomposition_inverts_robot_convention():
     r = rot_z(a) @ rot_x(b) @ rot_y(c)
     yaw, roll, pitch = waist_targets(r, np.eye(3))
     assert np.allclose([yaw, roll, pitch], [-a, -b, -c])
-    # STAR1: R_torso = Rz(-yaw) Rx(-roll) Ry(-pitch) must reproduce the chest rotation
+    # Robot: R_torso = Rz(-yaw) Rx(-roll) Ry(-pitch) must reproduce the chest rotation
     assert np.allclose(rot_z(-yaw) @ rot_x(-roll) @ rot_y(-pitch), r)
 
 

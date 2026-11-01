@@ -1,6 +1,6 @@
 """Coordinate conventions: MediaPipe camera axes -> robot-style body axes, mirroring, chest frame.
 
-Body axes (same convention as the STAR1 URDF):  x = forward, y = operator's left, z = up.
+Body axes (same convention as the robot URDF):  x = forward, y = operator's left, z = up.
 
 MediaPipe world landmarks are camera-aligned: x = image right, y = image down, z = away from
 the camera. The operator faces the camera, so their forward is towards the camera (-z), their

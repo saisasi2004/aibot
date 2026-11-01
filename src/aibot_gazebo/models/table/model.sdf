@@ -2,11 +2,11 @@
 <!-- Static table. Model origin is on the floor under the centre of the top.
      Top 0.40 (x) x 0.36 (y) m, surface at z = 0.98 m (slab 0.03 m thick, legs 0.95 m).
 
-     Height: STAR1's shoulders are at z = 1.33 m and its arm (shoulder -> wrist) is only 0.40 m,
+     Height: the robot's shoulders are at z = 1.33 m and its arm (shoulder -> wrist) is only 0.40 m,
      so a palm-down grasp on a 0.85 m table is out of reach; at 0.98 m (robot elbow height,
      like a workbench) the wrist needs 0.32-0.38 m.
 
-     Deliberately narrow: STAR1's arms hang at y = +-0.245 m with fingertips at z ~ 0.62 m, i.e.
+     Deliberately narrow: the robot's arms hang at y = +-0.245 m with fingertips at z ~ 0.62 m, i.e.
      below the table top. On a wider table every forward arm swing drives the hand under the front
      edge, where the force-limited servos pin it against the underside. At |y| <= 0.18 the hanging
      arms swing past the table sides; to grasp you lift the hand above the top and move inward. -->

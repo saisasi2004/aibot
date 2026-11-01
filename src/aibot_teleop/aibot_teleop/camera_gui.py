@@ -92,7 +92,7 @@ class CameraWindow(QtWidgets.QWidget):
         self.paused = False
         self._status = ""
         self._status_time = 0.0
-        self.setWindowTitle("STAR1 teleop - camera")
+        self.setWindowTitle("Aibot teleop - camera")
         self.setStyleSheet(STYLE)
 
         self.video = QtWidgets.QLabel("waiting for camera...")
@@ -101,7 +101,7 @@ class CameraWindow(QtWidgets.QWidget):
         self.video.setMinimumSize(480, 360)
         self.video.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
 
-        title = QtWidgets.QLabel("<b style='font-size:16px'>STAR1 teleop</b>")
+        title = QtWidgets.QLabel("<b style='font-size:16px'>Aibot teleop</b>")
         self.mode = "boot"
         self.source = VideoSource()
         mode_row = QtWidgets.QHBoxLayout()

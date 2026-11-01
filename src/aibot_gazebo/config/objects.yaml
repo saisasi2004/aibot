@@ -1,12 +1,12 @@
 # Object pool for the pick_table world: geometry and physics of every model, the fixed world
-# slots that use them, the STAR1 hand limits, and where on the table things may be placed.
+# slots that use them, the robot's hand limits, and where on the table things may be placed.
 #
 # Read by: scripts/generate_objects.py (writes models/<model>/model.sdf with exact inertias),
 # scene_manager_node (random layouts), skill_server_node (TOO_LARGE checks), tests.
 # The slot list must equal GRASP_OBJECTS in launch/sim.launch.py (checked by a unit test): the
 # DetachableJoint plugins are generated per (hand, slot) when the URDF is built.
 
-# What the STAR1 hand can hold with a top-down power grasp (the grasp itself is a weld in sim).
+# What the robot's hand can hold with a top-down power grasp (the grasp itself is a weld in sim).
 # Palm 9.4 cm x 5 cm, fingers ~10 cm: an object narrower than 2 cm slips between the fingers in
 # the real hand, wider than 8 cm cannot be wrapped, taller than 14 cm cannot be lifted clear of
 # the table at full reach, heavier than 0.4 kg exceeds a sensible finger/wrist load.

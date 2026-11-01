@@ -4,13 +4,12 @@
   <name>aibot_description</name>
   <version>0.1.0</version>
   <description>
-    RobotEra STAR1 humanoid (github.com/roboterax/models) prepared for fixed-base upper-body
+    aibot humanoid prepared for fixed-base upper-body
     teleoperation: re-rooted at the pelvis, legs locked upright, convex-hull collisions,
     ros2_control and Gazebo Harmonic tags.
   </description>
   <maintainer email="gampassv2004@gmail.com">Gampa Sai Sasivardhan</maintainer>
   <license>BSD-3-Clause</license>
-  <author>RobotEra (STAR1 model and meshes)</author>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 

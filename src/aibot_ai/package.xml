@@ -4,7 +4,7 @@
   <name>aibot_ai</name>
   <version>0.1.0</version>
   <description>
-    Physical AI mode for STAR1: mode manager (mimic/AI hand-over), head-camera perception,
+    Physical AI mode for aibot: mode manager (mimic/AI hand-over), head-camera perception,
     skill server (IK + minimum-jerk motion), and a local LLM/VLM planner via Ollama.
     Python dependencies beyond ROS are in requirements-ai.txt (installed into ~/aibot/.venv).
   </description>

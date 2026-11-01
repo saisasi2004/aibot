@@ -3,7 +3,7 @@
 <package format="3">
   <name>aibot_bringup</name>
   <version>0.1.0</version>
-  <description>One-command launch of STAR1 webcam teleop: Gazebo, controllers, webcam GUI, retargeting, grasping, RViz.</description>
+  <description>One-command launch of webcam teleop: Gazebo, controllers, webcam GUI, retargeting, grasping, RViz.</description>
   <maintainer email="gampassv2004@gmail.com">Gampa Sai Sasivardhan</maintainer>
   <license>BSD-3-Clause</license>
 

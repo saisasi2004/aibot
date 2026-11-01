@@ -1,6 +1,6 @@
-"""Direct angle mapping: operator arm vectors -> STAR1 7-DOF arm joint angles.
+"""Direct angle mapping: operator arm vectors -> the robot's 7-DOF arm joint angles.
 
-STAR1 arm, both sides: every joint frame is aligned with the torso at q = 0, where the arm hangs
+The robot arm, both sides: every joint frame is aligned with the torso at q = 0, where the arm hangs
 along -z. The chain is
 
     shoulder_pitch (y) -> shoulder_roll (x) -> arm_yaw (z) -> elbow_pitch (y)
@@ -16,7 +16,7 @@ and the angles are read back one stage at a time:
     sr = asin(u_y),  sp = atan2(-u_x, -u_z)
     f' = (Ry(sp) Rx(sr))^T f = (sin(flex) cos ay, sin(flex) sin ay, -cos(flex)),  ep = -flex
     (Ry Rx Rz Ry)^T H = Rz(ey) Ry(wp) Rx(wr)   (ZYX Euler)
-The human elbow only flexes one way, which on STAR1 is negative elbow_pitch (forearm forward).
+The human elbow only flexes one way, which on the robot is negative elbow_pitch (forearm forward).
 
 Two singularities matter in practice:
   * arm straight out sideways (the T-pose!): u_x = u_z = 0 leaves sp undefined;
@@ -101,7 +101,7 @@ def solve_arm(upper: np.ndarray, fore: np.ndarray, hand_rot: np.ndarray | None,
 def hand_frame(points: np.ndarray) -> np.ndarray | None:
     """Rotation of the operator's hand from 21 MediaPipe hand points (body axes).
 
-    Built to match STAR1's hand frame at q = 0 (arm hanging, palm facing the thigh):
+    Built to match the robot's hand frame at q = 0 (arm hanging, palm facing the thigh):
       -z along the fingers (wrist -> middle MCP), +x towards the thumb side (pinky MCP -> index
       MCP). Both cues are side-independent, so the same code serves both hands and mirror mode.
     """

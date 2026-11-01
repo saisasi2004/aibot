@@ -1,4 +1,4 @@
-"""retarget_node: operator landmarks -> STAR1 joint commands for the six position controllers.
+"""retarget_node: operator landmarks -> the robot's joint commands for the six position controllers.
 
 Subscribes  /teleop/body_landmarks, /teleop/hand_landmarks/{left,right}   (aibot_msgs)
             /joint_states   (until the first command, to start from the robot's actual pose)
@@ -274,7 +274,7 @@ class RetargetNode(Node):
                 q_direct = solve_arm(upper, fore, hand_rot, self._direct_prev[side])
                 self._direct_prev[side] = q_direct
                 if self.use_ik:
-                    # Seed IK with the direct mapping: STAR1's shoulder is singular in the T-pose
+                    # Seed IK with the direct mapping: the robot's shoulder is singular in the T-pose
                     # (pitch axis along the upper arm), where a solver warm-started from the
                     # previous pose cannot move the elbow forward. The analytic seed already has
                     # the operator's arm configuration; IK only corrects the wrist position for

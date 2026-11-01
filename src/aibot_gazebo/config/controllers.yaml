@@ -1,4 +1,4 @@
-# ros2_control configuration for STAR1 upper-body teleop in Gazebo Harmonic.
+# ros2_control configuration for the robot's upper-body teleop in Gazebo Harmonic.
 #
 # Controller choice: position_controllers/JointGroupPositionController (forward_command_controller
 # family) instead of joint_trajectory_controller/JointTrajectoryController.

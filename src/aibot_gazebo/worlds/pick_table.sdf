@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<!-- STAR1 teleop pick world.
+<!-- Aibot teleop pick world.
 
      The robot is spawned by sim.launch.py at the origin facing +X; its pelvis is welded at
      z = 1.017 m, shoulders at z ~ 1.33 m, y = +-0.245 m. Arm reach to the palm is ~0.56 m.

@@ -1,1 +1,1 @@
-"""Physical AI mode for STAR1."""
+"""Physical AI mode for aibot."""

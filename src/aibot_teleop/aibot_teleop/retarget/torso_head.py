@@ -1,6 +1,6 @@
 """Torso (waist yaw/roll/pitch) and head (neck yaw/pitch) targets from body landmarks.
 
-Waist. After the pelvis re-rooting in aibot_description, STAR1's torso orientation relative to
+Waist. After the pelvis re-rooting in aibot_description, the robot's torso orientation relative to
 the pelvis is
     R_torso = Rz(-q_yaw) Rx(-q_roll) Ry(-q_pitch)       (joint axes are -z, -x, -y)
 The operator's chest orientation relative to their calibrated neutral posture is decomposed in

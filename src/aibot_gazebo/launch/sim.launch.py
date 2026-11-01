@@ -1,4 +1,4 @@
-"""Gazebo Harmonic simulation of the fixed-base STAR1 with ros2_control.
+"""Gazebo Harmonic simulation of the fixed-base robot with ros2_control.
 
     ros2 launch aibot_gazebo sim.launch.py               # GUI
     ros2 launch aibot_gazebo sim.launch.py gui:=false    # headless server
@@ -85,7 +85,7 @@ def generate_launch_description() -> LaunchDescription:
 
     spawn_robot = Node(
         package="ros_gz_sim", executable="create", output="screen",
-        arguments=["-topic", "robot_description", "-name", "star1", "-allow_renaming", "false"],
+        arguments=["-topic", "robot_description", "-name", "aibot", "-allow_renaming", "false"],
     )
 
     bridge = Node(

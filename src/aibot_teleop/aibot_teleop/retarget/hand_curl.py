@@ -1,4 +1,4 @@
-"""MediaPipe hand landmarks -> per-finger curl (0..1) -> STAR1's 12 hand joints, plus grasp state.
+"""MediaPipe hand landmarks -> per-finger curl (0..1) -> the robot's 12 hand joints, plus grasp state.
 
 Curl of a finger = sum of its three bend angles (at MCP, PIP, DIP), each measured between
 consecutive bone vectors, normalised between an open-hand and a fist reference:
@@ -6,7 +6,7 @@ consecutive bone vectors, normalised between an open-hand and a fist reference:
 Sums of angles are invariant to hand rotation and to MediaPipe's per-hand scale, and robust to
 its depth noise because each bone contributes one angle.
 
-STAR1 hand joints (controller order) and their signs, verified by FK of the URDF: positive
+The robot hand joints (controller order) and their signs, verified by FK of the URDF: positive
 values curl towards the palm on both hands; positive index_bend adducts the index finger
 towards the middle finger.
     thumb_bend (opposition), thumb_rota_joint1, thumb_rota_joint2 (thumb flexion),
@@ -68,7 +68,7 @@ def hand_shape(points: np.ndarray) -> HandShape:
 
 @dataclass
 class HandMapping:
-    """Scale from normalised hand shape to STAR1 joint angles (rad)."""
+    """Scale from normalised hand shape to the robot's joint angles (rad)."""
 
     mcp_max: float = 1.45            # {finger}_joint1 at curl 1 (limit 1.92)
     pip_max: float = 1.60            # {finger}_joint2 at curl 1 (limit 1.92)

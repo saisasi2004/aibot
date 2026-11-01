@@ -19,7 +19,7 @@ setup(
     zip_safe=True,
     maintainer="Gampa Sai Sasivardhan",
     maintainer_email="gampassv2004@gmail.com",
-    description="Webcam (MediaPipe) teleoperation of the STAR1 upper body: landmarks, retargeting, grasping.",
+    description="Webcam (MediaPipe) teleoperation of the robot's upper body: landmarks, retargeting, grasping.",
     license="BSD-3-Clause",
     tests_require=["pytest"],
     entry_points={
