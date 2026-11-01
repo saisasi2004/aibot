@@ -119,3 +119,22 @@ def test_memory_merges_label_flicker_of_one_object():
     assert list(m.objects) == ["orange_ball_1"] and m.objects["orange_ball_1"].label == "ball"
     m.update([("cube", "red", est(0.53), 1.0)], 1.5)          # a different colour is a different object
     assert len(m.objects) == 2
+
+
+def test_memory_merges_overlapping_ghost_of_a_rolling_ball():
+    """Seen at two spots 5 cm apart with different labels (beyond the 3 cm flicker gate): one object."""
+    from aibot_ai.perception.fusion import ObjectEstimate
+    from aibot_ai.perception.memory import ObjectMemory
+
+    def est(x, y=0.07):
+        c = np.array([x, y, 1.01])
+        return ObjectEstimate(c, np.array([0.06, 0.06, 0.06]), 0.0, c[2] + 0.03, c + [0, 0, 0.03], 0.0, 500, 1.0)
+
+    m = ObjectMemory()
+    m.update([("ball", "orange", est(0.50), 1.0)], 0.0)
+    m.update([("ball", "orange", est(0.50), 1.0)], 0.5)
+    m.update([("box", "orange", est(0.54), 1.0)], 1.0)     # 4 cm on: within 6 cm gate but a new label
+    assert len(m.objects) == 1 and "orange_ball_1" in m.objects
+    assert m.objects["orange_ball_1"].position[0] >= 0.50
+    m.update([("ball", "orange", est(0.70), 1.0)], 1.5)    # a second ball far away stays separate
+    assert len(m.objects) == 2

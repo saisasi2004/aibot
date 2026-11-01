@@ -123,7 +123,7 @@ class SkillServerNode(Node):
         self.default_timeout: float = p("default_timeout", 20.0).value
         self.timeouts = {"pick": p("pick_timeout", 60.0).value, "place": p("place_timeout", 60.0).value}
         self.timeouts.update(place_in=self.timeouts["place"], move_aside=self.timeouts["pick"] + self.timeouts["place"])
-        self.line_speed: float = p("line_speed", 0.10).value
+        self.line_speed: float = p("line_speed", 0.20).value
         self.plan_budget: float = p("plan_budget", 25.0).value
         self.arrival_tolerance: float = p("arrival_tolerance", 0.03).value
         self.arrival_timeout: float = p("arrival_timeout", 4.0).value

@@ -97,7 +97,8 @@ def generate_launch_description() -> LaunchDescription:
     perception = Node(
         package="aibot_ai", executable="perception_node", name="perception_node", output="screen",
         parameters=[ai_params, {"use_sim_time": True, "detector": LaunchConfiguration("detector"),
-                               "vlm_backend": LaunchConfiguration("llm_backend")}],
+                               "vlm_backend": LaunchConfiguration("llm_backend"),
+                               "semantic.enabled": arg("semantic", bool)}],
     )
     skill_server = Node(
         package="aibot_ai", executable="skill_server_node", name="skill_server_node", output="screen",
@@ -122,6 +123,7 @@ def generate_launch_description() -> LaunchDescription:
     return LaunchDescription([
         DeclareLaunchArgument("mode", default_value="mimic", description="start in mimic or ai mode"),
         DeclareLaunchArgument("detector", default_value="tabletop", description="tabletop | yolo_world | color_blob"),
+        DeclareLaunchArgument("semantic", default_value="true", description="false: no VLM names for objects (saves cloud calls)"),
         DeclareLaunchArgument("llm_backend", default_value="hybrid", description="models: hybrid | openrouter | ollama"),
         DeclareLaunchArgument("mirror", default_value="false", description="robot mirrors you (your right -> its left)"),
         DeclareLaunchArgument("use_ik", default_value="false", description="wrist IK instead of direct angle mapping"),

@@ -106,8 +106,29 @@ class ObjectMemory:
                                             est.grasp.copy(), est.grasp_yaw, score * est.valid_fraction, now, now,
                                             votes={label: 1} if label else {}, box=boxes[i])
             seen.append(k)
+        self._merge_overlaps()
         self.expire(now)
         return seen
+
+    def _merge_overlaps(self) -> None:
+        """Two same-coloured objects with overlapping footprints cannot both be real: a ball still
+        rolling after a reset left a second entry, and the planner refused to grasp the ball because
+        it "collided" with its own ghost. Keep the id seen more often, at the newer position."""
+        items = [o for o in self.objects.values() if not o.held_by and not o.inside]
+        for i, a in enumerate(items):
+            for b in items[i + 1:]:
+                if a.id not in self.objects or b.id not in self.objects or a.color != b.color or not a.color:
+                    continue
+                if a.label in ("bin", "tray") or b.label in ("bin", "tray"):
+                    continue
+                reach = 0.5 * (float(max(a.size[:2])) + float(max(b.size[:2])))
+                if float(np.linalg.norm(a.position[:2] - b.position[:2])) >= 0.75 * reach:
+                    continue
+                keep, drop = (a, b) if (a.hits, a.last_seen) >= (b.hits, b.last_seen) else (b, a)
+                newer = a if a.last_seen >= b.last_seen else b
+                keep.position, keep.size, keep.grasp, keep.box = newer.position, newer.size, newer.grasp, newer.box
+                keep.last_seen = newer.last_seen
+                del self.objects[drop.id]
 
     def expire(self, now: float) -> None:
         for k in [k for k, o in self.objects.items() if not o.held_by and not (o.inside and o.inside in self.objects)

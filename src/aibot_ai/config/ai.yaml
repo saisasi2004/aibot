@@ -15,9 +15,9 @@ skill_server_node:
   ros__parameters:
     rate_hz: 50.0                # command rate while a trajectory runs
     speed: 0.5                   # fraction of URDF joint velocity limits for skill motions
-    max_joint_speed: 1.5         # rad/s cap on any joint ...
+    max_joint_speed: 2.0         # rad/s cap on any joint ...
     max_step_factor: 1.25        # ... and at most 1.25 ticks of trajectory time per tick after a stall:
-                                 # every command step <= 1.5 * 1.25 / 50 = 0.0375 rad
+                                 # every command step <= 2.0 * 1.25 / 50 = 0.05 rad, the jump budget
     hand_close_time: 0.5         # s to ramp a hand open/closed
     grasp_keepalive_hz: 5.0      # republish the AI grasp command so the grasp manager sees the source
     default_timeout: 20.0        # s per skill unless the goal says otherwise (pick/place: below)
@@ -28,7 +28,7 @@ skill_server_node:
     ik:
       waist_lower: [-0.6, -0.05, -0.40]
       waist_upper: [0.6, 0.05, 0.10]
-    line_speed: 0.10             # m/s, Cartesian speed cap on straight-line moves
+    line_speed: 0.20             # m/s, Cartesian speed cap on straight-line moves
     plan_budget: 25.0            # s of motion planning per pick/place before reporting UNREACHABLE
     follow_sim_time: true        # play trajectories at the simulation's real-time factor (from /joint_states stamps)
     rtf_window: 1.0              # s over which the real-time factor is measured

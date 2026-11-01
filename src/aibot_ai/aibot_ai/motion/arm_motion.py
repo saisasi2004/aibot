@@ -221,7 +221,7 @@ class ArmMotion:
             reasons[key] = reasons.get(key, 0) + 1
         return None, None, summarize(reasons)
 
-    def finger_directions(self, side: str, q: np.ndarray, point: np.ndarray, n: int = 8, keep: int = 4) -> list[np.ndarray]:
+    def finger_directions(self, side: str, q: np.ndarray, point: np.ndarray, n: int = 8, keep: int = 8) -> list[np.ndarray]:
         """Horizontal finger directions to try at `point`, best first: the hand spans ~10 cm behind
         (wrist) to ~10 cm ahead (fingertips) of the grasp point, so score each direction by its
         clearance from the obstacles along that span, plus a bonus for pointing away from the
