@@ -117,6 +117,7 @@ class PerceptionNode(Node):
         self.label_max_objects: int = p("semantic.max_objects", 8).value
         self.label_retry: float = p("semantic.retry_s", 10.0).value
         self._labelling = False
+        self._detect_after = 0
         self._last_label_try = 0.0
 
         self.tf = Buffer()
@@ -227,6 +228,8 @@ class PerceptionNode(Node):
         if frame is None:
             return
         rgb, depth, stamp = frame
+        if requested and stamp.nanoseconds < self._detect_after:
+            return                                # the camera has not caught up with the request yet
         if not requested and self._arm_over_table():
             return                                # occluded, moving view: wait for the arm to leave
         T = self._T(self.world_frame, self._rgb.header.frame_id, stamp)
@@ -301,9 +304,12 @@ class PerceptionNode(Node):
 
     # ------------------------------------------------------------------ services
     def _srv_detect_now(self, _req: Trigger.Request, res: Trigger.Response) -> Trigger.Response:
+        """Runs on a frame taken after this request. An older frame shows the world before the
+        motion that just ended: the arm still over the table, or an object not yet lifted."""
         ev = threading.Event()
         with self._lock:
             self._detect_requests.append(ev)
+            self._detect_after = max(self._detect_after, self.get_clock().now().nanoseconds)
         ok = ev.wait(5.0)
         res.success = ok
         res.message = (f"{len(self.memory.objects)} objects: {', '.join(self.memory.objects)}" if ok

@@ -171,3 +171,27 @@ def test_cluttered_grasp_finds_a_clear_finger_direction():
         assert wps is not None, why
     finally:
         m.set_scene([])
+
+
+def test_target_is_an_obstacle_for_the_transfer_but_not_the_descent():
+    """Regression: the hand swept through the object it was approaching (cube pushed 5.7 cm)."""
+    _, jm, table, m = _setup()
+    q0 = np.zeros(len(jm.names))
+    top = table["top_z"]
+    box = (0.52, 0.055, 0.03, 0.03, 0.0, top + 0.06)
+    grasp = np.array([0.52, 0.055, top + 0.06])
+    m.set_scene([])
+    legs, q_grasp, paths = m.approach("left", q0, grasp, (0.10, 0.12), allow_near=grasp, target=box, target_id="cube")
+    assert legs is not None, paths
+    s = m.solvers["left"]
+    assert len(s.obstacles) == 0                                # the scene is restored afterwards
+    s.obstacles, s.obstacle_ids = np.array([box]), ["cube"]
+    try:
+        q = q0
+        for kind, data in legs:
+            for w in data:
+                if kind == "joint":
+                    assert not m.path_hit("left", q, w)
+                q = w
+    finally:
+        m.set_scene([])

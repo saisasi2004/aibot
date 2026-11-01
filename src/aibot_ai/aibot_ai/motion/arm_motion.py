@@ -205,16 +205,33 @@ class ArmMotion:
             return cand
         return None, summarize(reasons)
 
+    def _transfer_avoiding(self, side: str, q: np.ndarray, q1: np.ndarray, target: tuple | None, target_id: str):
+        """transfer() with the object being approached counted as an obstacle: only the final
+        vertical move may come close to it. Leaving it out of the whole approach let the hand
+        sweep through it on the way (measured: a cube pushed 5.7 cm before the descent began)."""
+        s = self.solvers[side]
+        if target is None:
+            return self.transfer(side, q, q1)
+        saved, saved_ids = s.obstacles, s.obstacle_ids
+        s.obstacles = np.vstack([saved, np.array(target, float).reshape(1, 6)])
+        s.obstacle_ids = list(saved_ids) + [target_id]
+        try:
+            return self.transfer(side, q, q1)
+        finally:
+            s.obstacles, s.obstacle_ids = saved, saved_ids
+
     def approach(self, side: str, q: np.ndarray, point: np.ndarray, heights: tuple[float, ...],
-                 allow_near: np.ndarray | None = None, deadline: float | None = None):
+                 allow_near: np.ndarray | None = None, deadline: float | None = None,
+                 target: tuple | None = None, target_id: str = ""):
         """Best vertical candidate that also has a collision-free transfer from q to its top:
-        (legs, q_point, paths) or (None, None, why). Stops trying at `deadline` (time.monotonic)."""
+        (legs, q_point, paths) or (None, None, why). Stops trying at `deadline` (time.monotonic).
+        target: oriented box of the object approached, an obstacle for the transfer only."""
         reasons: dict[str, int] = {}
         for q_pt, paths in self.verticals(side, q, point, heights, allow_near, reasons):
             if deadline is not None and time.monotonic() > deadline:
                 reasons["planning time budget used up"] = 1
                 break
-            legs, why = self.transfer(side, q, paths[0][-1])
+            legs, why = self._transfer_avoiding(side, q, paths[0][-1], target, target_id)
             if legs is not None:
                 return legs, q_pt, paths
             key = "transfer: " + why.split(";")[-1].strip()[:80]

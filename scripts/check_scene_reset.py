@@ -106,7 +106,11 @@ def main() -> None:
             if slot in r.placed:
                 dz = abs(pb[2] - (t["top_z"] + resting_height(cfg["models"][models[slot]])))
                 tilt = tilt_deg(b[slot][1])
-                worst["drift"], worst["dz"], worst["tilt"] = max(worst["drift"], drift), max(worst["dz"], dz), max(worst["tilt"], tilt)
+                worst["dz"] = max(worst["dz"], dz)
+                if slot == "ball":
+                    worst_ball = max(worst_ball, drift)
+                else:
+                    worst["drift"], worst["tilt"] = max(worst["drift"], drift), max(worst["tilt"], tilt)
                 on_table = t["x"][0] <= pb[0] <= t["x"][1] and t["y"][0] <= pb[1] <= t["y"][1]
                 # a sphere's "tilt" is just rolling, and it may creep a little: it can't fall over
                 sphere = slot == "ball"

@@ -518,6 +518,14 @@ class SkillServerNode(Node):
             self._publish_grasp()
         return res
 
+    @staticmethod
+    def _obstacle_row(o: DetectedObject) -> tuple[float, ...]:
+        """Oriented box (x, y, half major, half minor, yaw, top z) of a perceived object."""
+        w = _wo(o)
+        q = o.pose.orientation
+        yaw = math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
+        return (float(w.position[0]), float(w.position[1]), 0.5 * float(o.size.x), 0.5 * float(o.size.y), yaw, w.top_z)
+
     def update_scene(self, exclude: set[str] = frozenset()) -> None:
         """Perceived objects become obstacles for the next plans (minus `exclude`: the object to
         grasp, the support to place on); carried objects are checked along with the arm."""
@@ -525,11 +533,7 @@ class SkillServerNode(Node):
         for o in self.world():
             if o.held_by or o.id in exclude or o.inside:
                 continue
-            w = _wo(o)
-            q = o.pose.orientation
-            yaw = math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
-            ob.append((float(w.position[0]), float(w.position[1]), 0.5 * float(o.size.x), 0.5 * float(o.size.y),
-                       yaw, w.top_z))
+            ob.append(self._obstacle_row(o))
             ids.append(o.id)
         attached = {s: (h.offset, 0.5 * float(h.size[2])) if h else None for s, h in self.holding.items()}
         self.motion.set_scene(ob, attached, ids)
@@ -776,13 +780,14 @@ class SkillServerNode(Node):
         grasp = np.array([o.pose.position.x, o.pose.position.y, z])
         return (grasp + [0.0, 0.0, self.g["approach_height"]], grasp, grasp + [0.0, 0.0, self.g["lift_height"]])
 
-    def _plan_pick(self, side: str, grasp: np.ndarray):
+    def _plan_pick(self, side: str, grasp: np.ndarray, target: DetectedObject):
         """Grasp-first: IK at the grasp point (obstacle-aware, finger directions ranked by
         clearance), vertical lines up to the pre-grasp and lift heights, and a collision-free
         transfer from the current pose to the pre-grasp (the first candidate that has one)."""
         q = self.start_pose()
         legs, _q_grasp, paths = self.motion.approach(side, q, grasp, (self.g["approach_height"], self.g["lift_height"]),
-                                                     allow_near=grasp, deadline=time.monotonic() + self.plan_budget)
+                                                     allow_near=grasp, deadline=time.monotonic() + self.plan_budget,
+                                                     target=self._obstacle_row(target), target_id=target.id)
         if legs is None:
             return None, paths
         to_pre, up = paths
@@ -815,7 +820,7 @@ class SkillServerNode(Node):
         self.update_scene(exclude={o.id})
         plan, side, reasons = None, "", []
         for s in free:
-            plan, why = self._plan_pick(s, grasp)
+            plan, why = self._plan_pick(s, grasp, o)
             if plan is not None:
                 side = s
                 break
@@ -894,10 +899,12 @@ class SkillServerNode(Node):
             return None, f"{held} is no longer in the {side} hand (the hand reports no grasp)"
         return side, ""
 
-    def _plan_place(self, side: str, held: Held, sol: PlaceSolution):
+    def _plan_place(self, side: str, held: Held, sol: PlaceSolution, support: str = ""):
         h = float(held.size[2])
         bottom = sol.surface_z + (self.pl["rim_clearance"] if sol.container_id else self.pl["drop_height"])
         reasons = []
+        sup = self.find(support) if support else None
+        keep = {"target": self._obstacle_row(sup), "target_id": sup.id} if sup is not None else {}
         deadline = time.monotonic() + self.plan_budget
         for x, y in sol.candidates[: int(self.pl["max_candidates"])]:
             if time.monotonic() > deadline:
@@ -916,7 +923,7 @@ class SkillServerNode(Node):
                 if q_rel is not None:
                     _, rot = self.motion.grasp_point(side, q_rel)
                     g = centre - rot @ held.offset
-                legs, q_rel, paths = self.motion.approach(side, q, g, (app,), allow_near=g, deadline=deadline)
+                legs, q_rel, paths = self.motion.approach(side, q, g, (app,), allow_near=g, deadline=deadline, **keep)
                 if legs is not None:
                     break
             if legs is None:
@@ -925,7 +932,7 @@ class SkillServerNode(Node):
             gp, rot = self.motion.grasp_point(side, q_rel)
             if np.linalg.norm(gp + rot @ held.offset - centre) > self.pl["aim_tolerance"]:
                 g2 = centre - rot @ held.offset           # the chosen pose's yaw differs: re-aim once
-                again = self.motion.approach(side, q, g2, (app,), allow_near=g2)
+                again = self.motion.approach(side, q, g2, (app,), allow_near=g2, **keep)
                 if again[0] is not None:
                     legs, q_rel, paths = again
             up = paths[0]
@@ -938,10 +945,13 @@ class SkillServerNode(Node):
         held = self.holding[side]
         feedback("planning", 0.05)
         self.update_scene(exclude={held.id, support})
-        plan, why = self._plan_place(side, held, sol)
+        plan, why = self._plan_place(side, held, sol, support)
         if plan is None:
             return SkillResult.fail("UNREACHABLE", f"no reachable spot {sol.message}: {why}")
         legs, down, up, centre = plan
+        gp, rot = self.motion.grasp_point(side, down[-1])
+        self.get_logger().info(f"place aim: object centre target {np.round(centre, 3).tolist()}, predicted "
+                               f"{np.round(gp + rot @ held.offset, 3).tolist()}, offset in hand {np.round(held.offset, 3).tolist()}")
         for step, fn, prog in (("transfer", lambda: self.move_legs(side, legs, should_abort), 0.2),
                                ("lowering", lambda: self.move_line(side, down, should_abort), 0.5),
                                ("releasing", lambda: self.set_hand(side, False, should_abort), 0.7)):
