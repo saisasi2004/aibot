@@ -62,6 +62,7 @@ from .motion.arm_motion import ArmMotion, MotionConfig
 from .motion.executor import TrajectoryExecutor
 from .motion.ik import HeadPointer
 from .motion.trajectory import PathTrajectory, Trajectory
+from .skills.gestures import swing_targets
 from .skills.matching import match
 from .skills.result import SkillResult
 
@@ -135,7 +136,7 @@ class SkillServerNode(Node):
         self.wave_pose: list[float] = list(p("gestures.wave_pose", [-0.4, -1.6, -1.0, -1.6, 0.0, 0.0, 0.0]).value)
         self.wave_amplitude: float = p("gestures.wave_amplitude", 0.5).value
         self.wave_cycles: int = p("gestures.wave_cycles", 2).value
-        self.nod_amplitude: float = p("gestures.nod_amplitude", 0.15).value
+        self.nod_amplitude: float = p("gestures.nod_amplitude", 0.25).value
         self.shake_amplitude: float = p("gestures.shake_amplitude", 0.3).value
         self.place_approach_heights: list[float] = list(p("place.approach_heights", [0.10, 0.06, 0.03]).value)
         self.look_at_max_error: float = p("look_at_max_error", 0.35).value
@@ -678,16 +679,12 @@ class SkillServerNode(Node):
 
     def _head_gesture(self, axis: int, amplitude: float, should_abort: Abort, what: str) -> SkillResult:
         rest = self.start_pose()[self.jm.groups["head"]]
-        r = SkillResult.ok()
-        for k in range(4):
-            target = rest.copy()
-            target[axis] += amplitude * (1 if k % 2 == 0 else -1)
-            target = np.clip(target, self.jm.limits.lower[self.neck_idx], self.jm.limits.upper[self.neck_idx])
+        for target in swing_targets(rest, axis, amplitude, self.jm.limits.lower[self.neck_idx],
+                                    self.jm.limits.upper[self.neck_idx]):
             r = self.move_groups({"head": target}, should_abort, 0.3)
             if not r.success:
                 return r
-        r = self.move_groups({"head": rest}, should_abort, 0.3)
-        return SkillResult.ok(what) if r.success else r
+        return SkillResult.ok(what)
 
     def skill_nod(self, goal, should_abort: Abort, feedback: Feedback) -> SkillResult:
         return self._head_gesture(1, self.nod_amplitude, should_abort, "nodded")

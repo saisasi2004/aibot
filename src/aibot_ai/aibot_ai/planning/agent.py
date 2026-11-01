@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Protocol
 
 from ..backends.base import BackendError, LLMBackend
+from ..skills.gestures import GESTURE_SKILLS, is_greeting
 from .plan import PLAN_SCHEMA, Plan, Step, World, ambiguous_mentions, parse_plan, validate
 from .prompt import build_messages
 
@@ -130,20 +131,24 @@ class PlannerAgent:
             self.history.append(f"user: {text} -> {rep.kind or 'error'}: {rep.reply[:120]}")
         return rep
 
-    def _reply(self, rep: Report, kind: str, message: str, success: bool) -> None:
+    def _reply(self, rep: Report, kind: str, message: str, success: bool, say: bool = True) -> None:
         rep.kind, rep.reply, rep.success = kind, message, success
-        self.say(message)
+        if say:
+            self.say(message)
         # every reply gets a visible reaction (nod / head shake), unless it was stopped; a plan that
-        # already gestured (e.g. a wave) needs none
-        gesture = self.gestures.get(kind)
-        gestured = any(s in ("wave", "nod", "shake_head") for p in rep.plans[-1:] for s in (x.split("(")[0] for x in p))
+        # already gestured (e.g. a wave) needs none, and a greeting answered with words only still
+        # gets a wave (the model decides the words, not whether the robot reacts)
+        gesture = "wave" if kind == "answer" and is_greeting(rep.request) else self.gestures.get(kind)
+        gestured = any(s in GESTURE_SKILLS for p in rep.plans[-1:] for s in (x.split("(")[0] for x in p))
         if gesture and not self.cancelled.is_set() and not (kind == "plan" and gestured):
             out = self.runner.run(Step(gesture), self.cancelled)
             rep.executed.append((f"{gesture}()", out.reason_code))
 
     def _handle(self, request: str, rep: Report, t0: float) -> None:
         world = self.runner.world()
-        if self.stale or not [o for o in world.objects if not o.held_by]:
+        # a greeting needs no view of the table: react now and keep the scan for the first real task
+        # (after a switch from mimic it cost 20-50 s before the wave could start)
+        if not is_greeting(rep.request) and (self.stale or not [o for o in world.objects if not o.held_by]):
             self.log("looking at the table first (new in AI mode, or nothing known)")
             self.stale = False
             self.runner.refresh()          # not counted as "first motion": that is the first plan step
@@ -168,7 +173,9 @@ class PlannerAgent:
                 q = f"Which one do you mean: {options}?"
                 self.pending = (request, q)
                 return self._reply(rep, "clarify", q, True)
-            self.say(f"{plan.message} Plan: " + ", ".join(s.text() for s in plan.steps))
+            social = all(s.skill in GESTURE_SKILLS for s in plan.steps)
+            # a purely social plan: the words appear as the motion starts, once, without plan jargon
+            self.say(plan.message if social else f"{plan.message} Plan: " + ", ".join(s.text() for s in plan.steps))
             failed = None
             for i, step in enumerate(plan.steps):
                 if self.cancelled.is_set():
@@ -182,7 +189,7 @@ class PlannerAgent:
                     failed = (i, step, out)
                     break
             if failed is None:
-                return self._reply(rep, "plan", f"Done: {plan.message}", True)
+                return self._reply(rep, "plan", plan.message if social else f"Done: {plan.message}", True, say=not social)
             i, step, out = failed
             if out.reason_code in STOP_CODES or self.cancelled.is_set():
                 return self._reply(rep, "stopped", f"Stopped during {step.text()}.", False)

@@ -59,7 +59,7 @@ skill_server_node:
                                                            # the table from home (FK + path check); left = mirror
       wave_amplitude: 0.5        # rad of elbow yaw each way
       wave_cycles: 2
-      nod_amplitude: 0.15        # rad neck pitch (from the scan pose 0.52 the upper limit clips the down half)
+      nod_amplitude: 0.25        # rad neck pitch each way (the swing is centred to fit the limits)
       shake_amplitude: 0.3       # rad neck yaw
     look_at_max_error: 0.35      # rad, target counts as in view (vertical half-FOV ~0.45 rad)
     # Home pose per controller group (controller joint order). Head: look down at the table.

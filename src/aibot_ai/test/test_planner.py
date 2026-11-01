@@ -197,3 +197,53 @@ def test_greeting_plan_waves_without_an_extra_nod():
     a.stale = False
     rep = a.handle("say hi")
     assert rep.success and skills.calls == ["wave()"]
+
+
+# ---------------------------------------------------------------- greetings (Phase 1 regression)
+@pytest.mark.parametrize("text", ["HI", "Say Hi", "wave hi", "hello robot", "good morning", "bye"])
+def test_greeting_answered_with_words_only_still_moves(text):
+    """The logged failure: kind=answer, steps=[] -> text, no motion."""
+    a, skills, said = agent([plan(kind="answer", message="Hi!")])
+    rep = a.handle(text)
+    assert rep.kind == "answer" and said == ["Hi!"] and skills.calls == ["wave()"]
+    assert rep.executed == [("wave()", "OK")]
+
+
+def test_greeting_does_not_wait_for_a_scan_and_the_task_after_it_still_scans():
+    a, skills, _ = agent([plan({"skill": "wave"}, message="Hi!"), plan(PICK_RED1, IN_BIN)])
+    a.stale = True
+    a.handle("HI")
+    assert "refresh" not in skills.calls and a.stale
+    a.handle("put red_cube_1 in the bin")
+    assert skills.calls[1] == "refresh" and not a.stale
+
+
+def test_social_plan_says_one_plain_message_before_moving():
+    events = []
+    skills = FakeSkills(scene())
+    run = skills.run
+    skills.run = lambda st, c: (events.append(st.text()), run(st, c))[1]
+    a = PlannerAgent(ScriptedLLM([plan({"skill": "wave"}, message="Hi!")]), skills, lambda m: events.append(m))
+    assert a.handle("HI").success
+    assert events == ["Hi!", "wave()"]
+
+
+def test_a_task_mentioning_a_greeting_is_not_social():
+    from aibot_ai.skills.gestures import is_greeting
+    assert is_greeting("HI") and is_greeting("wave hi")
+    assert not is_greeting("put the blue cube in the bin and then say hi to me")
+    assert not is_greeting("put the cube in the bin")
+    assert not is_greeting("this is a highly shiny cube")
+
+
+def test_head_swing_keeps_its_full_width_at_the_limit():
+    import numpy as np
+    from aibot_ai.skills.gestures import swing_targets
+    lower, upper = np.array([-1.5, -0.15]), np.array([1.5, 0.50])
+    rest = np.array([0.0, 0.50])                               # the scan pose, at the pitch limit
+    ts = swing_targets(rest, 1, 0.25, lower, upper)
+    pitch = [t[1] for t in ts]
+    assert max(pitch) - min(pitch) == pytest.approx(0.50)      # was 0.149 in the sim
+    assert all(lower[1] <= p <= upper[1] for p in pitch)
+    assert np.allclose(ts[-1], rest)                           # ends where it started
+    assert all(t[0] == 0.0 for t in ts)                        # only the asked axis moves
