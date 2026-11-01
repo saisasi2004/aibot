@@ -18,10 +18,10 @@ def obj(id_, label, x, y, size=(0.05, 0.05, 0.05)):
     return WorldObject(id_, label, np.array([x, y, TABLE["top_z"] + size[2] / 2]), np.array(size, float))
 
 
-HELD = obj("red_cube_1", "cube", 0.0, 0.0)
-SCENE = [obj("blue_cube_1", "cube", 0.42, 0.0, (0.04, 0.04, 0.04)),
-         obj("silver_bin_1", "bin", 0.48, -0.08, (0.13, 0.13, 0.06)),
-         obj("orange_ball_1", "ball", 0.38, 0.10, (0.06, 0.06, 0.06)),
+HELD = obj("red_cube", "cube", 0.0, 0.0)
+SCENE = [obj("blue_cube", "cube", 0.42, 0.0, (0.04, 0.04, 0.04)),
+         obj("silver_bin", "bin", 0.48, -0.08, (0.13, 0.13, 0.06)),
+         obj("orange_ball", "ball", 0.38, 0.10, (0.06, 0.06, 0.06)),
          HELD]
 R = PlaceResolver(TABLE)
 
@@ -31,33 +31,33 @@ def _free(x, y, others, r=HELD.radius):
 
 
 def test_on_targets_reference_top():
-    s = R.resolve("on", "blue_cube_1", "", (0, 0), HELD, SCENE)
+    s = R.resolve("on", "blue_cube", "", (0, 0), HELD, SCENE)
     assert s.ok and s.candidates == [(0.42, 0.0)]
     assert s.surface_z == pytest.approx(TABLE["top_z"] + 0.04)
 
 
 def test_on_a_ball_is_invalid_and_on_a_container_means_in():
-    assert R.resolve("on", "orange_ball_1", "", (0, 0), HELD, SCENE).reason_code == "INVALID"
-    s = R.resolve("on", "silver_bin_1", "", (0, 0), HELD, SCENE)
-    assert s.ok and s.container_id == "silver_bin_1"
+    assert R.resolve("on", "orange_ball", "", (0, 0), HELD, SCENE).reason_code == "INVALID"
+    s = R.resolve("on", "silver_bin", "", (0, 0), HELD, SCENE)
+    assert s.ok and s.container_id == "silver_bin"
 
 
 def test_in_container_and_not_in_a_cube():
-    s = R.resolve("in", "silver_bin_1", "", (0, 0), HELD, SCENE)
+    s = R.resolve("in", "silver_bin", "", (0, 0), HELD, SCENE)
     assert s.ok and s.candidates == [(0.48, -0.08)] and s.surface_z == pytest.approx(TABLE["top_z"] + 0.06)
-    assert R.resolve("in", "blue_cube_1", "", (0, 0), HELD, SCENE).reason_code == "INVALID"
+    assert R.resolve("in", "blue_cube", "", (0, 0), HELD, SCENE).reason_code == "INVALID"
 
 
 def test_too_large_for_container():
-    big = obj("box_1", "box", 0, 0, (0.14, 0.14, 0.05))
-    tray = obj("tray_1", "tray", 0.45, 0.0, (0.12, 0.12, 0.012))
-    assert R.resolve("in", "tray_1", "", (0, 0), big, [tray]).reason_code == "TOO_LARGE"
+    big = obj("box", "box", 0, 0, (0.14, 0.14, 0.05))
+    tray = obj("tray", "tray", 0.45, 0.0, (0.12, 0.12, 0.012))
+    assert R.resolve("in", "tray", "", (0, 0), big, [tray]).reason_code == "TOO_LARGE"
 
 
 @pytest.mark.parametrize("rel,axis,sign", [("left_of", 1, 1), ("right_of", 1, -1), ("in_front_of", 0, -1), ("behind", 0, 1)])
 def test_directional_relations(rel, axis, sign):
-    ref = obj("blue_cube_1", "cube", 0.43, 0.0, (0.04, 0.04, 0.04))
-    s = R.resolve(rel, "blue_cube_1", "", (0, 0), HELD, [ref, HELD])
+    ref = obj("blue_cube", "cube", 0.43, 0.0, (0.04, 0.04, 0.04))
+    s = R.resolve(rel, "blue_cube", "", (0, 0), HELD, [ref, HELD])
     assert s.ok
     x, y = s.candidates[0]
     delta = (np.array([x, y]) - ref.position[:2])[axis]
@@ -67,17 +67,17 @@ def test_directional_relations(rel, axis, sign):
 
 
 def test_left_of_slides_past_an_obstacle():
-    ref = obj("blue_cube_1", "cube", 0.43, 0.0, (0.04, 0.04, 0.04))
-    blocker = obj("yellow_cube_1", "cube", 0.40, 0.09, (0.04, 0.04, 0.04))
-    s = R.resolve("left_of", "blue_cube_1", "", (0, 0), HELD, [ref, blocker, HELD])
+    ref = obj("blue_cube", "cube", 0.43, 0.0, (0.04, 0.04, 0.04))
+    blocker = obj("yellow_cube", "cube", 0.40, 0.09, (0.04, 0.04, 0.04))
+    s = R.resolve("left_of", "blue_cube", "", (0, 0), HELD, [ref, blocker, HELD])
     assert s.ok
     assert all(_free(x, y, [ref, blocker]) for x, y in s.candidates)
     assert all(y >= ref.position[1] + HELD.radius + ref.radius for _x, y in s.candidates)
 
 
 def test_left_of_at_the_edge_is_unreachable():
-    ref = obj("blue_cube_1", "cube", 0.43, 0.15, (0.04, 0.04, 0.04))
-    s = R.resolve("left_of", "blue_cube_1", "", (0, 0), HELD, [ref, HELD])
+    ref = obj("blue_cube", "cube", 0.43, 0.15, (0.04, 0.04, 0.04))
+    s = R.resolve("left_of", "blue_cube", "", (0, 0), HELD, [ref, HELD])
     assert s.ok or s.reason_code == "UNREACHABLE"
     if s.ok:                              # only sideways candidates may remain, all in the area
         assert all(R.in_area(*c) for c in s.candidates)
@@ -103,7 +103,7 @@ def test_at_xy_checks_area_and_occupancy():
 
 def test_unknown_reference_and_relation():
     assert R.resolve("left_of", "ghost_1", "", (0, 0), HELD, SCENE).reason_code == "NOT_FOUND"
-    assert R.resolve("under", "blue_cube_1", "", (0, 0), HELD, SCENE).reason_code == "INVALID"
+    assert R.resolve("under", "blue_cube", "", (0, 0), HELD, SCENE).reason_code == "INVALID"
 
 
 def test_full_table_is_blocked():
@@ -120,7 +120,7 @@ def test_deterministic():
 
 
 def test_free_spot_prefers_side_and_moves_away():
-    held = obj("red_cube_1", "cube", 0.42, 0.0)
+    held = obj("red_cube", "cube", 0.42, 0.0)
     s = R.free_spot(held, SCENE[:-1] + [held], (0.36, 0.12))
     assert s.ok
     d = [math.dist(c, (0.36, 0.12)) for c in s.candidates]
@@ -138,20 +138,20 @@ class P:
     position: tuple
 
 
-OBJS = [P("red_cube_1", "cube", "red", (0.40, 0.10, 1.0)), P("red_cube_2", "cube", "red", (0.45, -0.10, 1.0)),
-        P("blue_cube_1", "cube", "blue", (0.35, 0.0, 1.0)), P("orange_ball_1", "ball", "orange", (0.5, 0.05, 1.0)),
-        P("silver_bin_1", "bin", "silver", (0.48, -0.08, 1.0))]
+OBJS = [P("red_cube", "cube", "red", (0.40, 0.10, 1.0)), P("red_cube_2", "cube", "red", (0.45, -0.10, 1.0)),
+        P("blue_cube", "cube", "blue", (0.35, 0.0, 1.0)), P("orange_ball", "ball", "orange", (0.5, 0.05, 1.0)),
+        P("silver_bin", "bin", "silver", (0.48, -0.08, 1.0))]
 
 
 @pytest.mark.parametrize("text,ids", [
     ("red_cube_2", ["red_cube_2"]),
-    ("the blue cube", ["blue_cube_1"]),
-    ("red cube", ["red_cube_1", "red_cube_2"]),            # ambiguous: both returned
-    ("the leftmost red cube", ["red_cube_1"]),
+    ("the blue cube", ["blue_cube"]),
+    ("red cube", ["red_cube", "red_cube_2"]),            # ambiguous: both returned
+    ("the leftmost red cube", ["red_cube"]),
     ("the red cube on the right", ["red_cube_2"]),
-    ("closest cube", ["blue_cube_1"]),
-    ("sphere", ["orange_ball_1"]),
-    ("the basket", ["silver_bin_1"]),
+    ("closest cube", ["blue_cube"]),
+    ("sphere", ["orange_ball"]),
+    ("the basket", ["silver_bin"]),
     ("green cube", []),
     ("banana", []),
 ])
@@ -170,7 +170,7 @@ def test_footprints_are_rectangles_not_circumscribed_circles():
 
 def test_realistic_scene_has_room_for_regions_and_relations():
     """5 objects like a real scene (logged "region is full" and "no free spot" every time)."""
-    held = obj("green_box_1", "box", 0, 0, (0.06, 0.04, 0.10))
+    held = obj("green_box", "box", 0, 0, (0.06, 0.04, 0.10))
     world = [obj("bin", "bin", 0.37, 0.03, (0.13, 0.13, 0.06)), obj("mug", "mug", 0.54, -0.04, (0.076, 0.076, 0.09)),
              obj("cube", "cube", 0.33, -0.13, (0.04, 0.04, 0.04)), obj("ball", "ball", 0.52, 0.07, (0.06, 0.06, 0.06))]
     free = [r for r in regions(TABLE) if R.resolve("at_region", "", r, (0, 0), held, world + [held]).ok]

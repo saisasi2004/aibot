@@ -49,10 +49,10 @@ def picks(plan) -> list[str]:
 COMMANDS = [
     ("HI", lambda p: bool(GESTURES & set(skills(p)))),
     ("good morning robot", lambda p: bool(GESTURES & set(skills(p)))),
-    ("put the blue cube in the bin", lambda p: picks(p) == ["blue_cube_1"] and p.steps[-1].target == "silver_bin_1"),
-    ("stack the blue cube on the yellow cube", lambda p: picks(p) == ["blue_cube_1"] and p.steps[-1].relation == "on"),
+    ("put the blue cube in the bin", lambda p: picks(p) == ["blue_cube"] and p.steps[-1].target == "silver_bin"),
+    ("stack the blue cube on the yellow cube", lambda p: picks(p) == ["blue_cube"] and p.steps[-1].relation == "on"),
     ("put the green box at the back right corner", lambda p: p.steps[-1].region == "back_right"),
-    ("put both red cubes in the bin", lambda p: sorted(picks(p)) == ["red_cube_1", "red_cube_2"]),
+    ("put both red cubes in the bin", lambda p: sorted(picks(p)) == ["red_cube", "red_cube_2"]),
     ("pick up the cube", lambda p: p.kind == "clarify"),
     ("put the red cube in the bin", lambda p: p.kind == "clarify"),
     ("put the banana in the bin", lambda p: p.kind == "impossible"),
@@ -60,15 +60,15 @@ COMMANDS = [
 ]
 # commands that need the camera model's names: geometry alone says block / box / can
 SEMANTIC = [
-    ("put the screwdriver in the bin", lambda p: picks(p) == ["purple_block_1"]),
-    ("put the tool in the bin", lambda p: picks(p) == ["purple_block_1"]),
-    ("put the soda in the bin", lambda p: picks(p) == ["silver_can_1"]),
-    ("put the coffee in the bin", lambda p: picks(p) == ["white_mug_1"]),
-    ("move the juice to the back left", lambda p: picks(p) == ["green_box_1"] and p.steps[-1].region == "back_left"),
-    ("put the toy in the bin", lambda p: picks(p) == ["red_cube_1"]),
-    ("put the tennis ball next to the coffee mug", lambda p: picks(p) == ["orange_ball_1"]),
-    ("put the drink carton in the bin", lambda p: picks(p) == ["green_box_1"]),
-    ("put the sports equipment in the bin", lambda p: picks(p) == ["orange_ball_1"]),
+    ("put the screwdriver in the bin", lambda p: picks(p) == ["purple_block"]),
+    ("put the tool in the bin", lambda p: picks(p) == ["purple_block"]),
+    ("put the soda in the bin", lambda p: picks(p) == ["silver_can"]),
+    ("put the coffee in the bin", lambda p: picks(p) == ["white_mug"]),
+    ("move the juice to the back left", lambda p: picks(p) == ["green_box"] and p.steps[-1].region == "back_left"),
+    ("put the toy in the bin", lambda p: picks(p) == ["red_cube"]),
+    ("put the tennis ball next to the coffee mug", lambda p: picks(p) == ["orange_ball"]),
+    ("put the drink carton in the bin", lambda p: picks(p) == ["green_box"]),
+    ("put the sports equipment in the bin", lambda p: picks(p) == ["orange_ball"]),
     ("put the hammer in the bin", lambda p: p.kind == "impossible"),
 ]
 VERIFY_SCHEMA = {"type": "object", "properties": {"answer": {"type": "boolean"}}, "required": ["answer"]}

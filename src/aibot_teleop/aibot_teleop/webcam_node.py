@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import array
 import contextlib
+import itertools
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -189,7 +190,6 @@ class WebcamNode(Node):
         self._cam_args = (self.camera_id, width, height, fps, self.get_clock())
         self._cam_lock = threading.Lock()
         self._cam_generation = 0
-        self.reopen_attempts: int = p("reopen_attempts", 10).value
         self.reopen_delay: float = p("reopen_delay", 0.5).value
         self.camera: LatestFrameCamera | None = None
         self.create_service(SetBool, "/teleop/webcam_enable", self._srv_enable)
@@ -200,8 +200,13 @@ class WebcamNode(Node):
                                         "body": 0.0, "left": 0.0, "right": 0.0}
         self.tracking = {"body": False, "left": False, "right": False}
 
+        busy = False
         if self.inference_enabled:          # started for Physical AI: the camera stays closed until mimic
-            self.camera = LatestFrameCamera(*self._cam_args)
+            try:
+                self.camera = LatestFrameCamera(*self._cam_args)
+            except RuntimeError as exc:     # the GUI and the AI mode must not die with the camera
+                busy = True
+                self.get_logger().error(f"{exc}; the window stays up and keeps trying")
         self.get_logger().info(
             f"camera /dev/video{self.camera_id} {'open' if self.camera else 'closed until mimic'} @ {fps} fps requested; "
             f"pose model '{pose_model}', {self.num_hands} hands, GUI {'on' if self.gui_enabled else 'off'}")
@@ -213,6 +218,8 @@ class WebcamNode(Node):
         self._stop = threading.Event()
         self._worker = threading.Thread(target=self._process_loop, name="mediapipe", daemon=True)
         self._worker.start()
+        if busy:
+            threading.Thread(target=self._reopen, args=(self._cam_generation,), name="camera_open", daemon=True).start()
 
     # ------------------------------------------------------------------ setup helpers
     def _model_path(self, value: str, pattern: str) -> str:
@@ -281,14 +288,16 @@ class WebcamNode(Node):
             cam.close()
 
     def _reopen(self, generation: int) -> None:
-        for attempt in range(1, self.reopen_attempts + 1):
+        """Open the camera in the background, until it works or the mode no longer wants it: another
+        program may hold it for a long time, and video should come back as soon as that one lets go."""
+        for attempt in itertools.count(1):
             if self._stop.is_set() or generation != self._cam_generation:
                 return
             try:
                 t0 = time.monotonic()
                 cam = LatestFrameCamera(*self._cam_args)
             except RuntimeError as exc:
-                self.get_logger().warn(f"camera reopen {attempt}/{self.reopen_attempts}: {exc}")
+                self.get_logger().warn(f"camera reopen attempt {attempt}: {exc}", throttle_duration_sec=10.0)
                 self._stop.wait(self.reopen_delay)
                 continue
             with self._cam_lock:
@@ -300,7 +309,6 @@ class WebcamNode(Node):
                 return
             self.get_logger().info(f"camera reopened in {time.monotonic() - t0:.2f} s (attempt {attempt})")
             return
-        self.get_logger().error(f"could not reopen /dev/video{self.camera_id}: mimic has no video")
 
     def _process(self, frame: np.ndarray, stamp: Time) -> None:
         if not self.inference_enabled:

@@ -31,7 +31,7 @@ def v():
     names = [jm.names[i] for i in jm.groups["right_hand"]]
 
     def plan_point(arm, oid, q):
-        if oid != "blue_cube_1":
+        if oid != "blue_cube":
             raise ValueError(f"unknown object '{oid}'")
         r = m.reach(arm, q, np.array([0.42, 0.0, table["top_z"] + 0.2]))
         wps, why = m.joint_move(arm, q, m.with_arm(arm, q, r.q))
@@ -130,7 +130,7 @@ def test_perceived_objects_and_other_arm_are_checked(v):
 
 
 def test_holding_an_object_locks_that_arm_hand_and_the_waist(v):
-    held = {"right": "red_cube_1", "left": ""}
+    held = {"right": "red_cube", "left": ""}
     for j in ("right_elbow_pitch_joint", "waist_pitch_joint"):
         with pytest.raises(MotionError, match="locked"):
             v.prepare({"keyframes": [kf(1.0, **{j: -0.2})]}, v.q0, held)
@@ -140,7 +140,7 @@ def test_holding_an_object_locks_that_arm_hand_and_the_waist(v):
 
 
 def test_point_at_uses_ik_and_the_point_hand(v):
-    p = v.prepare({"intent": "p", "point_at": {"object": "blue_cube_1", "arm": "right"}}, v.q0)
+    p = v.prepare({"intent": "p", "point_at": {"object": "blue_cube", "arm": "right"}}, v.q0)
     top = p.waypoints[len(p.waypoints) // 2 - 1]
     assert np.linalg.norm(v.m.grasp_point("right", top)[0] - [0.42, 0.0, v.table["top_z"] + 0.2]) < 0.02
     assert "right_arm" in p.groups and np.allclose(p.waypoints[-1], v.q0)

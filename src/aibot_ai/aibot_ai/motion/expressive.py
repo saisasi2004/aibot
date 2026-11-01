@@ -6,7 +6,7 @@ No LLM-written code ever runs. A motion is data:
      "keyframes": [{"t": 1.2, "joints": [{"name": "right_elbow_pitch_joint", "angle": -1.6}],
                     "right_hand": "open"}, ...],
      "repeat": {"from": 1, "to": 2, "count": 2},          # optional: replay a keyframe range
-     "point_at": {"object": "blue_cube_1", "arm": "right"}}  # optional: reach above an object (IK)
+     "point_at": {"object": "blue_cube", "arm": "right"}}  # optional: reach above an object (IK)
 
 This module is the safety layer, ROS-free and deterministic: joints are whitelisted, angles clamped
 to the limits, keyframes and time bounded, speed limited by stretching time (the trajectory does

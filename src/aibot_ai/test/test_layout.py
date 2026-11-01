@@ -62,3 +62,10 @@ def test_deterministic_and_type_filter():
     for seed in range(20):                     # exact slot names win over the same-named model
         picked = choose_slots(CFG["slots"]["graspable"], 3, ["cube_small", "cube_blue", "ball"], np.random.default_rng(seed))
         assert picked == ["ball", "cube_blue", "cube_small"]
+
+
+def test_full_table_always_has_a_layout():
+    """Every object at once, the default scene: the sampler must find room for any seed."""
+    slots = {**CFG["slots"]["graspable"], **CFG["slots"]["containers"]}
+    for seed in range(30):
+        assert len(sample_layout(slots, CFG["models"], CFG["table"], np.random.default_rng(seed))) == len(slots)

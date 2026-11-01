@@ -18,22 +18,23 @@ hand_limits:
 
 table:
   top_z: 0.98              # m, table surface
-  x: [0.20, 0.60]          # table extent
-  y: [-0.18, 0.18]
+  x: [0.36, 0.66]          # table extent: starts past the arms' low swing, see models/table/model.sdf
+  y: [-0.34, 0.34]
   # Where object centres may be placed: inside the head camera's view at the scan pose and
   # reachable palm-down by at least one arm when the waist may lean/turn (the 0.40 m arm alone
   # cannot reach the back of the table; skill IK includes waist yaw and pitch). Closer than
   # x = 0.32 the forearm runs into the torso at the table centre (measured reachability map,
   # aibot_ai/test/test_motion.py checks the whole area).
-  place_x: [0.32, 0.54]
-  place_y: [-0.15, 0.15]
+  place_x: [0.40, 0.62]
+  place_y: [-0.30, 0.30]
   edge_margin: 0.02        # m, keep footprints this far inside the table edge
   clearance: 0.025         # m, minimum gap between object footprints in random scenes
   place_clearance: 0.015   # m, between a placed object and its neighbours (rotated footprints)
-  reach_x: [0.30, 0.56]    # where object centres may be put down: wider than the random-scene area,
-  reach_y: [-0.15, 0.15]   # inside the table edge; the arm's collision check has the last word
+  reach_x: [0.39, 0.63]    # where object centres may be put down: wider than the random-scene area,
+  reach_y: [-0.31, 0.31]   # inside the table edge; the arm's collision check has the last word
 
-parking:                   # unused slots wait on the floor behind the robot, out of every view
+parking:                   # only when a reset asks for fewer objects (test scripts): the rest wait
+                           # on the floor behind the robot, out of every view
   origin: [-2.0, -1.5]
   spacing: 0.3
 
@@ -67,11 +68,16 @@ slots:
     bin: container_bin
     tray: container_tray
 
-# Layout when the world starts (before any /aibot/scene/reset): the four objects of the original
-# world plus the bin; everything else parked.
+# Layout when the world starts (before any /aibot/scene/reset): every object on the table.
 default_layout:            # x, y, yaw
-  cube_small: [0.27, 0.10, 0.0]
-  box_small: [0.27, -0.10, 0.0]
-  cylinder_can: [0.35, 0.11, 0.0]
-  cube_small_2: [0.35, -0.11, 0.4]
-  bin: [0.46, 0.0, 0.0]
+  cube_small: [0.41, 0.10, 0.0]
+  cube_blue: [0.41, 0.0, 0.0]
+  box_small: [0.41, -0.10, 0.0]
+  cube_yellow: [0.42, 0.22, 0.0]
+  cube_small_2: [0.41, -0.22, 0.4]
+  cylinder_can: [0.50, 0.14, 0.0]
+  block_flat: [0.51, 0.24, 0.0]
+  mug: [0.59, 0.14, 0.0]
+  ball: [0.59, 0.24, 0.0]
+  bin: [0.52, 0.0, 0.0]
+  tray: [0.52, -0.19, 0.0]

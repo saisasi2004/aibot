@@ -51,13 +51,13 @@ def test_box_agreement():
 
 def test_world_text_shows_names():
     text = world_text(FakeSkills(semantic_scene()).world())
-    assert 'purple_block_1: purple block ("screwdriver": a hand tool)' in text
+    assert 'purple_block: purple block ("screwdriver": a hand tool)' in text
 
 
 @pytest.mark.parametrize("text,ids", [
-    ("the screwdriver", ["purple_block_1"]), ("hand me the tool", ["purple_block_1"]), ("coffee mug", ["white_mug_1"]),
-    ("the soda can", ["silver_can_1"]), ("tennis ball", ["orange_ball_1"]), ("the juice", ["green_box_1"]),
-    ("the toy", ["red_cube_1"]), ("the white cup", ["white_mug_1"]), ("red cube", ["red_cube_1"]), ("the hammer", []),
+    ("the screwdriver", ["purple_block"]), ("hand me the tool", ["purple_block"]), ("coffee mug", ["white_mug"]),
+    ("the soda can", ["silver_can"]), ("tennis ball", ["orange_ball"]), ("the juice", ["green_box"]),
+    ("the toy", ["red_cube"]), ("the white cup", ["white_mug"]), ("red cube", ["red_cube"]), ("the hammer", []),
 ])
 def test_match_by_semantic_name(text, ids):
     assert [o.id for o in match(text, FakeSkills(semantic_scene()).world().objects)] == ids
@@ -66,10 +66,10 @@ def test_match_by_semantic_name(text, ids):
 def test_scene_question_and_checks():
     assert is_scene_question("what do you see?") and not is_scene_question("put the mug in the bin")
     w = FakeSkills(semantic_scene()).world()
-    assert check_for(Step("pick", "white_mug_1"), w).expected is False
-    c = check_for(Step("place", relation="in", target="silver_bin_1"), w, "white_mug_1")
+    assert check_for(Step("pick", "white_mug"), w).expected is False
+    c = check_for(Step("place", relation="in", target="silver_bin"), w, "white_mug")
     assert c.expected is True and "coffee mug" in c.question and "metal bin" in c.question
-    assert check_for(Step("home"), w) is None and check_for(Step("place", relation="in", target="silver_bin_1"), w) is None
+    assert check_for(Step("home"), w) is None and check_for(Step("place", relation="in", target="silver_bin"), w) is None
 
 
 class Runner(FakeSkills):
@@ -84,7 +84,7 @@ class Runner(FakeSkills):
         return "a mug and a bin"
 
 
-PICK, IN = {"skill": "pick", "object": "white_mug_1"}, {"skill": "place", "relation": "in", "target": "silver_bin_1"}
+PICK, IN = {"skill": "pick", "object": "white_mug"}, {"skill": "place", "relation": "in", "target": "silver_bin"}
 
 
 def run(answers, **kw):
@@ -107,7 +107,7 @@ def test_verification_agrees_quietly():
 def test_disagreement_is_reported_but_geometry_wins():
     a, r, _ = run([plan(PICK, IN)], answer=(False, "no mug"))
     rep = a.handle("put the coffee mug in the bin")
-    assert rep.success and r.is_in("white_mug_1", "silver_bin_1") and "doubts" in rep.reply
+    assert rep.success and r.is_in("white_mug", "silver_bin") and "doubts" in rep.reply
 
 
 def test_verification_never_delays_the_next_step():
@@ -120,7 +120,7 @@ def test_verification_never_delays_the_next_step():
 
 
 def test_failure_feedback_and_scene_questions_carry_the_camera_words():
-    r = Runner(semantic_scene(), unreachable={"white_mug_1"})
+    r = Runner(semantic_scene(), unreachable={"white_mug"})
     llm = ScriptedLLM([plan(PICK, IN), plan(kind="impossible", message="cannot")])
     a = PlannerAgent(llm, r, lambda m: None)
     a.stale = False

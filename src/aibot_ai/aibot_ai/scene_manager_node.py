@@ -43,7 +43,7 @@ class SceneManagerNode(Node):
         default_cfg = Path(get_package_share_directory("aibot_gazebo")) / "config" / "objects.yaml"
         self.cfg = yaml.safe_load(Path(p("objects_file", str(default_cfg)).value).read_text())
         self.world: str = p("world", "pick_table").value
-        self.default_count: int = p("default_count", 4).value
+        self.default_count: int = p("default_count", 9).value
         self.settle_time: float = p("settle_time", 1.5).value
         self.call_timeout: float = p("call_timeout", 2.0).value
         self.cb = ReentrantCallbackGroup()
@@ -87,8 +87,9 @@ class SceneManagerNode(Node):
     def _srv_reset(self, req: ResetScene.Request, res: ResetScene.Response) -> ResetScene.Response:
         t0 = time.monotonic()
         try:
-            placements, parked = self.plan(req.seed, req.count or self.default_count, list(req.types),
-                                           list(req.containers) or ["bin"])
+            # no count: the full table, tray included; test scripts ask for fewer and get the bin
+            containers = list(req.containers) or (["bin"] if req.count else list(self.cfg["slots"]["containers"]))
+            placements, parked = self.plan(req.seed, req.count or self.default_count, list(req.types), containers)
         except (ValueError, RuntimeError) as exc:
             res.success, res.message = False, str(exc)
             return res

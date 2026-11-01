@@ -95,12 +95,12 @@ def test_memory_tracks_ids_and_expires():
     seg = run([{"type": "box", "center": (0.30, 0.08, TABLE_Z + 0.025), "size": (0.05, 0.05, 0.05)}])[0][0]
     mem = ObjectMemory(expiry=2.0)
     ids = mem.update([("cube", "red", seg.estimate, 1.0)], now=0.0)
-    assert ids == ["red_cube_1"]
-    assert mem.update([("cube", "red", seg.estimate, 1.0)], now=1.0) == ["red_cube_1"]
-    assert mem.update([("cube", "blue", seg.estimate, 1.0)], now=1.5) == ["blue_cube_1"]   # colour gate
-    mem.set_held("red_cube_1", "left")
+    assert ids == ["red_cube"]
+    assert mem.update([("cube", "red", seg.estimate, 1.0)], now=1.0) == ["red_cube"]
+    assert mem.update([("cube", "blue", seg.estimate, 1.0)], now=1.5) == ["blue_cube"]   # colour gate
+    mem.set_held("red_cube", "left")
     mem.expire(10.0)
-    assert list(mem.objects) == ["red_cube_1"]                                       # held survives expiry
+    assert list(mem.objects) == ["red_cube"]                                       # held survives expiry
 
 
 def test_memory_merges_label_flicker_of_one_object():
@@ -116,7 +116,7 @@ def test_memory_merges_label_flicker_of_one_object():
     m.update([("ball", "orange", est(0.517), 1.0)], 0.0)
     m.update([("mug", "orange", est(0.518), 1.0)], 0.5)
     m.update([("ball", "orange", est(0.517), 1.0)], 1.0)
-    assert list(m.objects) == ["orange_ball_1"] and m.objects["orange_ball_1"].label == "ball"
+    assert list(m.objects) == ["orange_ball"] and m.objects["orange_ball"].label == "ball"
     m.update([("cube", "red", est(0.53), 1.0)], 1.5)          # a different colour is a different object
     assert len(m.objects) == 2
 
@@ -134,7 +134,17 @@ def test_memory_merges_overlapping_ghost_of_a_rolling_ball():
     m.update([("ball", "orange", est(0.50), 1.0)], 0.0)
     m.update([("ball", "orange", est(0.50), 1.0)], 0.5)
     m.update([("box", "orange", est(0.54), 1.0)], 1.0)     # 4 cm on: within 6 cm gate but a new label
-    assert len(m.objects) == 1 and "orange_ball_1" in m.objects
-    assert m.objects["orange_ball_1"].position[0] >= 0.50
+    assert len(m.objects) == 1 and "orange_ball" in m.objects
+    assert m.objects["orange_ball"].position[0] >= 0.50
     m.update([("ball", "orange", est(0.70), 1.0)], 1.5)    # a second ball far away stays separate
     assert len(m.objects) == 2
+
+
+def test_names_carry_a_number_only_for_a_second_alike_object():
+    seg = run([{"type": "box", "center": (0.30, 0.08, TABLE_Z + 0.025), "size": (0.05, 0.05, 0.05)}])[0][0]
+    far = run([{"type": "box", "center": (0.50, -0.10, TABLE_Z + 0.025), "size": (0.05, 0.05, 0.05)}])[0][0]
+    mem = ObjectMemory()
+    ids = mem.update([("cube", "red", seg.estimate, 1.0), ("cube", "red", far.estimate, 1.0)], now=0.0)
+    assert sorted(ids) == ["red_cube", "red_cube_2"]
+    mem.objects.clear()
+    assert mem.update([("cube", "red", seg.estimate, 1.0)], now=1.0) == ["red_cube"]   # no ever-growing counter

@@ -75,7 +75,7 @@ skill_server_node:
 
 scene_manager_node:
   ros__parameters:
-    default_count: 4             # objects placed when a reset asks for 0
+    default_count: 9             # objects placed when a reset asks for 0: all of them
     settle_time: 1.5             # s to wait after teleporting before answering
     call_timeout: 2.0            # s per set_pose call
 

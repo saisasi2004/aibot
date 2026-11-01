@@ -53,7 +53,6 @@ class ObjectMemory:
     tentative_hits: int = 3          # seen fewer times than this = tentative ...
     tentative_expiry: float = 3.0    # ... and forgotten sooner (one-frame artifacts)
     objects: dict[str, TrackedObject] = field(default_factory=dict)
-    _counters: dict[str, int] = field(default_factory=dict)
 
     @staticmethod
     def _compatible(a_label: str, a_color: str, b_label: str, b_color: str) -> bool:
@@ -61,8 +60,12 @@ class ObjectMemory:
 
     def _new_id(self, label: str, color: str) -> str:
         base = "_".join(x for x in (color, label or "object") if x)
-        self._counters[base] = self._counters.get(base, 0) + 1
-        return f"{base}_{self._counters[base]}"
+        if base not in self.objects:
+            return base
+        n = 2                                              # a number only to tell two alike apart
+        while f"{base}_{n}" in self.objects:
+            n += 1
+        return f"{base}_{n}"
 
     def update(self, observations: list[tuple], now: float) -> list[str]:
         """observations: (label, colour, estimate, detector score[, image box]). Returns ids seen this frame."""

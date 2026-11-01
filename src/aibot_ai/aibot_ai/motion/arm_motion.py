@@ -30,9 +30,9 @@ class MotionConfig:
     max_line_joint_step: float = 0.25  # rad: a bigger jump between line points = IK branch flip
     path_samples: int = 15             # minimum collision checks along a joint-space move ...
     path_step: float = 0.03            # ... and at most this much joint motion (rad) between two
-    beside_x: float = 0.30             # m, waypoint beside the table (world), y = +-beside_y
-    beside_y: float = 0.32             # (0.27 let the 16 cm thumb reach over the table edge on the way up)
-    beside_height: float = 0.17        # above the table top
+    beside_x: float = 0.25             # m, waypoint beside the table (world), y = +-beside_y
+    beside_y: float = 0.25             # m, in front of the table's near edge, in line with the shoulder
+    beside_height: float = 0.25        # above the table top
     high_height: float = 0.30          # "over the top" transfers: grasp point this far above the table
     hand_back: float = 0.10            # m of hand behind the grasp point (towards the wrist) ...
     hand_ahead: float = 0.10           # ... and ahead of it (fingertips), for choosing a finger direction

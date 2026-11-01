@@ -1,4 +1,4 @@
-"""Match a short description ("the red cube", "leftmost ball", "red_cube_1") to perceived objects.
+"""Match a short description ("the red cube", "leftmost ball", "red_cube") to perceived objects.
 
 Shared by the locate skill and the planner, so both resolve words to ids the same way. Colour and
 shape words filter; spatial superlatives (leftmost, nearest, ...) pick one of several candidates;

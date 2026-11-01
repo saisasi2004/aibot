@@ -39,18 +39,18 @@ EXAMPLES: list[tuple[str, dict]] = [
     ("WORLD:\nred_cube_1: red cube at (40, 10)\nblue_cube_1: blue cube at (45, -8)\nsilver_bin_1: bin (container) at (37, 3)\n"
      "HANDS: left=empty right=empty\n\nREQUEST: put the red cube in the bin",
      {"kind": "plan", "message": "Putting the red cube in the bin.",
-      "steps": [{"skill": "pick", "object": "red_cube_1"},
-                {"skill": "place", "relation": "in", "target": "silver_bin_1"}]}),
+      "steps": [{"skill": "pick", "object": "red_cube"},
+                {"skill": "place", "relation": "in", "target": "silver_bin"}]}),
     ("WORLD:\nred_cube_1: red cube at (40, 10)\nred_cube_2: red cube at (48, -10)\norange_ball_1: orange ball at (35, -5)\n"
      "HANDS: left=empty right=empty\n\nREQUEST: put the red cube next to the ball",
-     {"kind": "clarify", "message": "There are two red cubes, red_cube_1 on the left and red_cube_2 on the right. Which one?",
+     {"kind": "clarify", "message": "There are two red cubes, red_cube on the left and red_cube_2 on the right. Which one?",
       "steps": []}),
     ("WORLD:\nblue_cube_1: blue cube at (42, 0)\nyellow_cube_1: yellow cube at (50, 8)\ngreen_box_1: green box at (36, -9)\n"
      "HANDS: left=empty right=empty\n\nREQUEST: stack the blue cube on the yellow cube and move the green box to the back right",
      {"kind": "plan", "message": "Stacking blue on yellow, then moving the green box to the back right.",
-      "steps": [{"skill": "pick", "object": "blue_cube_1"},
-                {"skill": "place", "relation": "on", "target": "yellow_cube_1"},
-                {"skill": "pick", "object": "green_box_1"},
+      "steps": [{"skill": "pick", "object": "blue_cube"},
+                {"skill": "place", "relation": "on", "target": "yellow_cube"},
+                {"skill": "pick", "object": "green_box"},
                 {"skill": "place", "relation": "at_region", "region": "back_right"}]}),
     ("WORLD:\nblue_cube_1: blue cube at (42, 0)\nsilver_bin_1: bin (container) at (37, 3)\n"
      "HANDS: left=empty right=empty\n\nREQUEST: put the banana in the bin",
@@ -86,7 +86,7 @@ MOTION_EXAMPLES: list[tuple[str, dict]] = [
          {"t": 1.2, "joints": [{"name": "waist_pitch_joint", "angle": -0.35}, {"name": "neck_pitch_joint", "angle": 0.4}]},
          {"t": 2.2, "joints": [{"name": "waist_pitch_joint", "angle": -0.35}]}]}}),
     ("WORLD:\nblue_cube_1: blue cube at (42, 0)\nHANDS: left=empty right=empty\n\nREQUEST: point at the blue cube",
-     {"kind": "answer", "message": "That one.", "steps": [], "motion": {"intent": "point", "point_at": {"object": "blue_cube_1", "arm": "right"}}}),
+     {"kind": "answer", "message": "That one.", "steps": [], "motion": {"intent": "point", "point_at": {"object": "blue_cube", "arm": "right"}}}),
 ]
 
 

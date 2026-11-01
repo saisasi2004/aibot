@@ -46,12 +46,16 @@ def resting_height(model: dict) -> float:
 
 def sample_layout(slots: dict[str, str], models: dict[str, dict], table: dict, rng: np.random.Generator,
                   max_tries: int = 200, restarts: int = 300) -> list[Placement]:
-    """Place every slot in `slots` (slot -> model). Largest first; a dead end restarts the layout."""
-    for _ in range(restarts):
-        try:
-            return _sample_once(slots, models, table, rng, max_tries)
-        except RuntimeError:
+    """Place every slot in `slots` (slot -> model). Largest first; a dead end restarts the layout.
+    A crowded table gets smaller gaps; radii are circles around the corners, so real gaps are wider."""
+    for gap in (table["clearance"], 0.015, 0.01, 0.005):
+        if gap > table["clearance"]:
             continue
+        for _ in range(restarts // 4):
+            try:
+                return _sample_once(slots, models, {**table, "clearance": gap}, rng, max_tries)
+            except RuntimeError:
+                continue
     raise RuntimeError(f"no non-overlapping layout for {len(slots)} items after {restarts} restarts")
 
 

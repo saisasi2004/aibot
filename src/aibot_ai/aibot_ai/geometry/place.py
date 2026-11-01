@@ -1,6 +1,6 @@
 """Deterministic resolution of a PlaceTarget (relation + reference) to a spot on the table.
 
-The planner (LLM) says *where in words* ("left_of red_cube_1", "in bin_1", "at_region front");
+The planner (LLM) says *where in words* ("left_of red_cube", "in bin", "at_region front");
 this module turns that into coordinates using the perceived world state only. No randomness:
 the same scene and target always give the same candidates, in the same order.
 

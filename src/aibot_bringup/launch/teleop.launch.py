@@ -45,13 +45,32 @@ def _grasp_objects(gz_share: str) -> list[str]:
     return list(module.GRASP_OBJECTS)
 
 
+def _workspace_root() -> Path:
+    """Where .env and .venv live: above this file, whether it is symlinked from src/ or copied into
+    install/ by a plain `colcon build`; the current directory if neither is found."""
+    for root in Path(os.path.realpath(__file__)).parents:
+        if (root / ".venv").is_dir() or (root / ".env").is_file():
+            return root
+    return Path.cwd()
+
+
+def _use_workspace_venv() -> None:
+    """Make the workspace's .venv packages (mediapipe, torch...) visible to every node, whichever
+    python the scripts' shebangs name and whether or not the venv is active: a plain `colcon build`
+    writes #!/usr/bin/python3, and webcam_node, which owns the GUI, then dies on import. Appended,
+    so ROS packages come first, the same order as in an activated venv."""
+    sites = sorted((_workspace_root() / ".venv" / "lib").glob("python3*/site-packages"))
+    if sites:
+        os.environ["PYTHONPATH"] = os.pathsep.join(p for p in (os.environ.get("PYTHONPATH", ""), str(sites[0])) if p)
+        return
+    print("[teleop.launch] no .venv found in the workspace: run scripts/setup_env.sh, the webcam GUI needs it")
+
+
 def generate_launch_description() -> LaunchDescription:
-    # OPENROUTER_API_KEY from the environment, or the git-ignored .env at the workspace root
-    # (the launch file is symlinked from src/, so that root is found from its real path; the
-    # current directory covers non-symlink installs). Children inherit the environment.
-    for env_file in (Path(os.path.realpath(__file__)).parents[3] / ".env", Path.cwd() / ".env"):
-        if load_dotenv(env_file):
-            break
+    _use_workspace_venv()
+    # OPENROUTER_API_KEY from the environment, or the git-ignored .env at the workspace root.
+    # Children inherit the environment.
+    load_dotenv(_workspace_root() / ".env")
     bringup = get_package_share_directory("aibot_bringup")
     teleop = get_package_share_directory("aibot_teleop")
     gz_share = get_package_share_directory("aibot_gazebo")

@@ -171,7 +171,7 @@ operator at ≤ 1 rad/s. Every node also checks the mode itself (defence in dept
 RANSAC table plane → points above it, minus the robot's own hands and forearms (TF at the
 image's timestamp) → voxel clusters → footprint (`minAreaRect`), height, shape label
 (cube/box/block/can/mug/ball/bin/tray) and dominant colour → object memory with stable ids
-(`red_cube_1`), smoothing, label voting and expiry. Runs at 2 Hz in AI mode only, skipped while
+(`red_cube`), smoothing, label voting and expiry. Runs at 2 Hz in AI mode only, skipped while
 an arm is over the table (occlusion artefacts); skills ask for `detect_now` when they need a
 fresh view.
 
@@ -236,7 +236,7 @@ requests the plan carries an optional `motion`, next to the chat text in `messag
    {"t": 2.1, "joints": [{"name": "right_elbow_yaw_joint", "angle": 0.5}]},
    {"t": 2.7, "joints": [{"name": "right_elbow_yaw_joint", "angle": -0.5}]}],
  "repeat": {"from": 1, "to": 2, "count": 1},
- "point_at": {"object": "blue_cube_1", "arm": "right"}}
+ "point_at": {"object": "blue_cube", "arm": "right"}}
 ```
 
 Keyframes need `t` (seconds from the start). `joints`, hand presets (`open`, `half`, `fist`, `point`,

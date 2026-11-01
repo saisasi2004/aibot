@@ -162,19 +162,19 @@ class FakeSkills:
 
 def scene() -> list[Thing]:
     """Default regression scene: 7 objects + bin + tray, with deliberate duplicates (two red cubes)."""
-    return [Thing("red_cube_1", "cube", "red", 0.40, 0.10), Thing("red_cube_2", "cube", "red", 0.50, -0.11),
-            Thing("blue_cube_1", "cube", "blue", 0.36, -0.02), Thing("yellow_cube_1", "cube", "yellow", 0.47, 0.03),
-            Thing("orange_ball_1", "ball", "orange", 0.34, 0.12), Thing("green_box_1", "box", "green", 0.52, 0.12),
-            Thing("white_mug_1", "mug", "white", 0.40, -0.12), Thing("silver_bin_1", "bin", "silver", 0.46, -0.06),
-            Thing("black_tray_1", "tray", "black", 0.35, 0.03)]
+    return [Thing("red_cube", "cube", "red", 0.40, 0.10), Thing("red_cube_2", "cube", "red", 0.50, -0.11),
+            Thing("blue_cube", "cube", "blue", 0.36, -0.02), Thing("yellow_cube", "cube", "yellow", 0.47, 0.03),
+            Thing("orange_ball", "ball", "orange", 0.34, 0.12), Thing("green_box", "box", "green", 0.52, 0.12),
+            Thing("white_mug", "mug", "white", 0.40, -0.12), Thing("silver_bin", "bin", "silver", 0.46, -0.06),
+            Thing("black_tray", "tray", "black", 0.35, 0.03)]
 
 
 def semantic_scene() -> list[Thing]:
     """A scene whose objects only the camera model can name: geometry alone says cube/box/can."""
-    return [Thing("red_cube_1", "cube", "red", 0.40, 0.10, semantic_name="toy block", description="a small wooden toy"),
-            Thing("silver_can_1", "can", "silver", 0.50, -0.11, semantic_name="soda can", description="an aluminium drink"),
-            Thing("green_box_1", "box", "green", 0.52, 0.12, semantic_name="juice carton", description="a drink carton"),
-            Thing("white_mug_1", "mug", "white", 0.40, -0.12, semantic_name="coffee mug", description="a ceramic cup"),
-            Thing("purple_block_1", "block", "purple", 0.36, -0.02, semantic_name="screwdriver", description="a hand tool"),
-            Thing("orange_ball_1", "ball", "orange", 0.34, 0.12, semantic_name="tennis ball", description="a sports ball"),
-            Thing("silver_bin_1", "bin", "silver", 0.46, -0.06, semantic_name="metal bin", description="a storage container")]
+    return [Thing("red_cube", "cube", "red", 0.40, 0.10, semantic_name="toy block", description="a small wooden toy"),
+            Thing("silver_can", "can", "silver", 0.50, -0.11, semantic_name="soda can", description="an aluminium drink"),
+            Thing("green_box", "box", "green", 0.52, 0.12, semantic_name="juice carton", description="a drink carton"),
+            Thing("white_mug", "mug", "white", 0.40, -0.12, semantic_name="coffee mug", description="a ceramic cup"),
+            Thing("purple_block", "block", "purple", 0.36, -0.02, semantic_name="screwdriver", description="a hand tool"),
+            Thing("orange_ball", "ball", "orange", 0.34, 0.12, semantic_name="tennis ball", description="a sports ball"),
+            Thing("silver_bin", "bin", "silver", 0.46, -0.06, semantic_name="metal bin", description="a storage container")]

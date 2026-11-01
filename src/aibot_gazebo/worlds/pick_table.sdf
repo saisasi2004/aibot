@@ -3,10 +3,9 @@
 
      The robot is spawned by sim.launch.py at the origin facing +X; its pelvis is welded at
      z = 1.017 m, shoulders at z ~ 1.33 m, y = +-0.245 m. Arm reach to the palm is ~0.56 m.
-     Table: x 0.20..0.60 (front edge clear of the thighs, x <= 0.115), |y| <= 0.18 (the hanging
-     arms swing past its sides instead of under it), top at z = 0.98 (robot elbow height: the
+     Table: x 0.36..0.66, |y| <= 0.34, top at z = 0.98 (robot elbow height: the
      0.40 m arm cannot reach down to a lower table).
-     Objects: front row x = 0.28, back row x = 0.38, both reachable palm-down without leaning. All start 1 mm above the table so nothing begins in penetration. -->
+     Objects: positions from config/objects.yaml, all reachable palm-down with the waist. All start 1 mm above the table so nothing begins in penetration. -->
 <sdf version="1.9">
   <world name="pick_table">
 
@@ -170,22 +169,22 @@
     <include>
       <name>table</name>
       <uri>model://table</uri>
-      <pose>0.40 0 0 0 0 0</pose>
+      <pose>0.51 0 0 0 0 0</pose>
     </include>
 
     <!-- BEGIN GENERATED-OBJECTS: scripts/generate_objects.py from config/objects.yaml - DO NOT EDIT.
          Slots on the table follow default_layout; the others are parked behind the robot. -->
-    <include><name>cube_small</name><uri>model://cube_small</uri><pose>0.270 0.100 1.0060 0 0 0.000</pose></include>
-    <include><name>cube_small_2</name><uri>model://cube_small</uri><pose>0.350 -0.110 1.0060 0 0 0.400</pose></include>
-    <include><name>cube_blue</name><uri>model://cube_blue</uri><pose>-2.000 -1.500 0.0210 0 0 0.000</pose></include>
-    <include><name>cube_yellow</name><uri>model://cube_yellow</uri><pose>-2.300 -1.500 0.0310 0 0 0.000</pose></include>
-    <include><name>box_small</name><uri>model://box_small</uri><pose>0.270 -0.100 1.0310 0 0 0.000</pose></include>
-    <include><name>block_flat</name><uri>model://block_flat</uri><pose>-2.600 -1.500 0.0135 0 0 0.000</pose></include>
-    <include><name>cylinder_can</name><uri>model://cylinder_can</uri><pose>0.350 0.110 1.0410 0 0 0.000</pose></include>
-    <include><name>mug</name><uri>model://mug</uri><pose>-2.900 -1.500 0.0460 0 0 0.000</pose></include>
-    <include><name>ball</name><uri>model://ball</uri><pose>-3.200 -1.500 0.0310 0 0 0.000</pose></include>
-    <include><name>bin</name><uri>model://container_bin</uri><pose>0.460 0.000 0.9810 0 0 0.000</pose></include>
-    <include><name>tray</name><uri>model://container_tray</uri><pose>-3.500 -1.500 0.0010 0 0 0.000</pose></include>
+    <include><name>cube_small</name><uri>model://cube_small</uri><pose>0.410 0.100 1.0060 0 0 0.000</pose></include>
+    <include><name>cube_small_2</name><uri>model://cube_small</uri><pose>0.410 -0.220 1.0060 0 0 0.400</pose></include>
+    <include><name>cube_blue</name><uri>model://cube_blue</uri><pose>0.410 0.000 1.0010 0 0 0.000</pose></include>
+    <include><name>cube_yellow</name><uri>model://cube_yellow</uri><pose>0.420 0.220 1.0110 0 0 0.000</pose></include>
+    <include><name>box_small</name><uri>model://box_small</uri><pose>0.410 -0.100 1.0310 0 0 0.000</pose></include>
+    <include><name>block_flat</name><uri>model://block_flat</uri><pose>0.510 0.240 0.9935 0 0 0.000</pose></include>
+    <include><name>cylinder_can</name><uri>model://cylinder_can</uri><pose>0.500 0.140 1.0410 0 0 0.000</pose></include>
+    <include><name>mug</name><uri>model://mug</uri><pose>0.590 0.140 1.0260 0 0 0.000</pose></include>
+    <include><name>ball</name><uri>model://ball</uri><pose>0.590 0.240 1.0110 0 0 0.000</pose></include>
+    <include><name>bin</name><uri>model://container_bin</uri><pose>0.520 0.000 0.9810 0 0 0.000</pose></include>
+    <include><name>tray</name><uri>model://container_tray</uri><pose>0.520 -0.190 0.9810 0 0 0.000</pose></include>
     <!-- END GENERATED-OBJECTS -->
 
   </world>

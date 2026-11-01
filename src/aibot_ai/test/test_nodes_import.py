@@ -30,3 +30,13 @@ def test_node_constructs(name, cls, monkeypatch):
         getattr(mod, cls)().destroy_node()
     finally:
         rclpy.try_shutdown()
+
+
+def test_every_subpackage_is_installed_by_a_plain_build():
+    """find_packages skips a directory without __init__.py: it works with --symlink-install, then
+    a plain colcon build leaves the node dying on import."""
+    import aibot_ai
+    from pathlib import Path
+    root = Path(aibot_ai.__file__).resolve().parent
+    missing = [d.name for d in root.iterdir() if d.is_dir() and d.name != "__pycache__" and any(d.glob("*.py")) and not (d / "__init__.py").exists()]
+    assert not missing
