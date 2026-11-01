@@ -160,6 +160,9 @@ class PlannerNode(Node):
         self.create_service(Trigger, "/aibot/planner/clear_gestures", self._srv_clear_gestures, callback_group=self.cb)
         self.gate = ModeGate(self, "ai", True, self._on_mode_change)
         self._busy = threading.Lock()
+        self._queue: list[str] = []
+        self._queue_lock = threading.Lock()
+        self.max_queue: int = p("max_queue", 3).value
         self.create_subscription(String, "/aibot/chat/user", self._on_user, 10, callback_group=self.cb)
         self.create_subscription(DetectedObjectArray, "/aibot/perception/objects", lambda m: setattr(self, "objects", m),
                                  5, callback_group=self.cb)
@@ -200,6 +203,8 @@ class PlannerNode(Node):
 
     def _on_mode_change(self, _old: str | None, new: str) -> None:
         if new != "ai":
+            with self._queue_lock:
+                self._queue.clear()
             self.agent.cancel()
             return
         self.agent.stale = True           # mimic moved the head and arms: look at the table again first
@@ -211,6 +216,8 @@ class PlannerNode(Node):
         return res
 
     def _srv_cancel(self, _req: Trigger.Request, res: Trigger.Response) -> Trigger.Response:
+        with self._queue_lock:
+            self._queue.clear()
         self.agent.cancel()
         res.success, res.message = True, "plan cancelled" if self._busy.locked() else "no plan running"
         return res
@@ -228,9 +235,15 @@ class PlannerNode(Node):
             if not self.llm_ok:
                 self.say(f"My planner is offline: {self.llm_error}")
                 return
-        if not self._busy.acquire(blocking=False):
-            self.say("I'm still working on the last task. Press STOP first if you want me to do something else.")
-            return
+        with self._queue_lock:
+            if not self._busy.acquire(blocking=False):
+                # a gesture can take 30 s in a slow sim: answer next instead of refusing (STOP clears this)
+                if len(self._queue) >= self.max_queue:
+                    self.say("I'm still busy, and I've got a few things waiting. Press STOP to start over.")
+                else:
+                    self._queue.append(text)
+                    self.say("One moment, I'll get to that next.")
+                return
         threading.Thread(target=self._work, args=(text,), daemon=True).start()
 
     def _work(self, text: str) -> None:
@@ -244,7 +257,12 @@ class PlannerNode(Node):
                 f"steps={rep.executed}")
             self.publish_status("idle", request=text, report=rep.as_dict())
         finally:
-            self._busy.release()
+            with self._queue_lock:
+                following = self._queue.pop(0) if self._queue else None
+                if following is None:
+                    self._busy.release()         # else keep it: the next request runs straight away
+        if following is not None:
+            threading.Thread(target=self._work, args=(following,), daemon=True).start()
 
 
 def main(args: list[str] | None = None) -> None:

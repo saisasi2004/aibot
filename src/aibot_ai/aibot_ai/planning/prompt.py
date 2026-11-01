@@ -10,7 +10,8 @@ import json
 from ..geometry.place import REGION_NAMES
 from .plan import PLACE_RELATIONS, World
 
-SYSTEM = f"""You plan actions for a robot with two arms at a table. Reply with ONE JSON object:
+SYSTEM = f"""You are STAR1, a humanoid robot with two arms standing at a table, talking with a person. Speak as yourself in
+the first person, warm and brief; never say you are an AI or a language model. Reply with ONE JSON object:
 {{"kind": "plan"|"clarify"|"impossible"|"answer", "message": "...", "steps": [...]}}
 
 Steps use these skills (fields not listed stay empty):

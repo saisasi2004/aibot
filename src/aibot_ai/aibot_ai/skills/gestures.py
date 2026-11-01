@@ -31,3 +31,13 @@ def swing_targets(rest: np.ndarray, axis: int, amplitude: float, lower: np.ndarr
         out.append(np.clip(t, lower, upper))
     out.append(np.array(rest, float))
     return out
+
+
+_TASK = re.compile(r"\b(pick|put|place|move|stack|grab|take|lift|hand|give|point|look|see|show|find|where|which|how many|"
+                   r"what do you|clear|sort|bin|tray|table|cube|box|block|can|mug|cup|ball|object)\b", re.IGNORECASE)
+
+
+def needs_view(text: str) -> bool:
+    """Does answering need a fresh look at the table? Small talk does not: the scan cost 20 s before
+    "how does it feel to have a body?". Tasks and questions about the table do."""
+    return bool(_TASK.search(text))

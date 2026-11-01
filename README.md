@@ -4,9 +4,10 @@ Two modes, switchable at runtime from the camera window (or `mode:=mimic|ai`):
 
 - **Mimic** (default): move your arms, hands, torso and head in front of a laptop webcam and the
   STAR1 upper body copies you in Gazebo. Close your hand near an object to pick it up.
-- **Physical AI:** type a task ("pick the red cube and put it in the bin"). The robot looks at
-  the table with its head RGB-D camera, a local LLM (Ollama) plans it as a sequence of skills,
-  and deterministic skill code does the perception-based picking and placing.
+- **Physical AI:** type a task ("pick the red cube and put it in the bin") or just say hi. The robot
+  looks at the table with its head RGB-D camera, an LLM plans it as skills, or designs a gesture
+  as validated data, and deterministic code does the picking, placing and moving. Models are
+  hybrid: OpenRouter first, local Ollama as the fallback.
 
 Stack: Ubuntu 24.04 · ROS 2 Jazzy · Gazebo Harmonic (gz-sim 8) · ros2_control + gz_ros2_control ·
 MediaPipe 0.10.21 (Pose + Hand landmarkers) · Python 3.12 · PyQt5.
@@ -38,10 +39,20 @@ straight out to the sides). When the camera window says TRACKING, the robot foll
 ## Quick start (Physical AI)
 
 ```bash
-curl -fsSL https://ollama.com/install.sh | sh     # once: local LLM server (CPU is enough)
-./scripts/setup_ai.sh                             # checks Ollama, pulls granite4.2:3b + gemma3:4b
-ros2 launch aibot_bringup teleop.launch.py mode:=ai llm_backend:=ollama
+curl -fsSL https://ollama.com/install.sh | sh     # once: local models (the fallback)
+./scripts/setup_ai.sh                             # checks Ollama, pulls granite4.2:3b + moondream
+ros2 launch aibot_bringup teleop.launch.py mode:=ai
 ```
+
+For the cloud models, put your OpenRouter key in a file named `.env` at the workspace root (git
+ignores it), or export it:
+
+```
+OPENROUTER_API_KEY=your-key-here
+```
+
+Without a key everything runs locally, with one notice in the log. The key is read from the
+environment only and never logged: startup reports just `OPENROUTER_API_KEY: present` or `missing`.
 
 Type into the chat box under the video (visible in Physical AI mode), or without a webcam:
 `ros2 run aibot_ai chat`. Try "put the blue cube in the bin", "stack the blue cube on the yellow
@@ -66,7 +77,7 @@ switching back to Mimic releases held objects and glides to your pose without a 
 | `gazebo_gui` / `rviz` / `camera_gui` | `true` | the three windows |
 | `mode` | `mimic` | start in `mimic` or `ai` (switch at runtime in the camera window, Tab) |
 | `detector` | `tabletop` | AI perception: `tabletop` (depth segmentation), `yolo_world`, `color_blob` |
-| `llm_backend` | `ollama` | planner LLM (model, URL, timeouts in `aibot_ai/config/ai.yaml`) |
+| `llm_backend` | `hybrid` | models: `hybrid` (OpenRouter, then Ollama), `openrouter`, `ollama`; details in `aibot_ai/config/ai.yaml` |
 | `webcam` | `true` | `false`: no webcam node (AI-only use, or tests that play the operator) |
 
 ### Camera window (PyQt5)
@@ -164,7 +175,18 @@ image's timestamp) → voxel clusters → footprint (`minAreaRect`), height, sha
 (cube/box/block/can/mug/ball/bin/tray) and dominant colour → object memory with stable ids
 (`red_cube_1`), smoothing, label voting and expiry. Runs at 2 Hz in AI mode only, skipped while
 an arm is over the table (occlusion artefacts); skills ask for `detect_now` when they need a
-fresh view. The VLM (`/aibot/vlm/describe`, `/aibot/vlm/verify`, gemma3:4b) is on demand only.
+fresh view.
+
+**Camera model (VLM).** It adds meaning, never geometry, and never holds up motion:
+- **Names:** a background worker sends numbered crops of new objects as one small image and stores
+  a `semantic_name` and `description` per object until it moves, so "put the screwdriver in the bin"
+  resolves. Geometry stays the depth detector's.
+- **Second opinion:** after `pick` and `place` it answers a yes/no question in the background.
+  Geometry stays authoritative: a disagreement is logged and mentioned in the reply, and triggers a
+  replan only with `vlm_check.replan_on_disagree`, off by default because of the "yes" bias measured below.
+- **Words:** failures and scene questions ("what do you see?") get a time-limited description.
+- **Privacy:** every VLM entry point refuses an image that isn't tagged as the simulated head camera;
+  the webcam node and GUI import no model or network code. Tests enforce both.
 
 **Skills (`skill_server_node`, action `/aibot/skills/execute`).** `scan`, `look_at`, `home`,
 `locate`, `pick`, `place`, `place_in`, `move_aside`, `open_hand`, `release`; each returns a
@@ -190,6 +212,12 @@ reason code (`OK`, `NOT_FOUND`, `AMBIGUOUS`, `UNREACHABLE`, `TOO_LARGE`, `GRASP_
   resolved deterministically from the perceived world state into an ordered list of free spots.
 - **Safety:** STOP, a cancel or a mode change stops on the next 20 ms tick; every skill has a timeout.
 
+**Models (`backends/`).** `HybridBackend` tries an ordered list per role. A call to the cloud is limited
+by time to first content and total time (`llm.first_byte_timeout` 6 s and `llm.total_timeout` 15 s; VLM
+8 s and 20 s). A 429, 5xx or in-flight-budget 402 is retried once after 0.5 s. After 3 failures in a row the cloud is
+skipped for 60 s, then one call probes it, so a dead network doesn't delay every command. The chat
+panel shows who answered: `cloud 1.2 s`, `local 6.8 s (cloud down)` or `cache`.
+
 **Planner (`planner_node`).** The request plus a compact world state (ids, colours, labels,
 positions in cm, what each hand holds) go to the local LLM with a JSON schema (Ollama structured
 output). The answer is a `plan`, `clarify`, `impossible` or `answer`. A plan is validated against
@@ -198,6 +226,43 @@ something that is not a container...); errors go back for one repair. Steps run 
 a failed step is fed back for a replan (at most 2), otherwise the robot explains the failure.
 A deterministic guard asks "which one?" when the words match several objects and the model
 guessed. Chat: `/aibot/chat/user` → `/aibot/chat/robot`; status `/aibot/planner/status`.
+
+**Gestures: the LLM designs the motion, as data.** No LLM-written code runs. For social or expressive
+requests the plan carries an optional `motion`, next to the chat text in `message`:
+
+```json
+{"intent": "greet",
+ "keyframes": [
+   {"t": 1.5, "joints": [{"name": "right_shoulder_roll_joint", "angle": -1.6},
+                         {"name": "right_elbow_pitch_joint", "angle": -1.6}], "right_hand": "open"},
+   {"t": 2.1, "joints": [{"name": "right_elbow_yaw_joint", "angle": 0.5}]},
+   {"t": 2.7, "joints": [{"name": "right_elbow_yaw_joint", "angle": -0.5}]}],
+ "repeat": {"from": 1, "to": 2, "count": 1},
+ "point_at": {"object": "blue_cube_1", "arm": "right"}}
+```
+
+Keyframes need `t` (seconds from the start). `joints`, hand presets (`open`, `half`, `fist`, `point`,
+`thumb_up`), `repeat` and `point_at` (which reaches above an object using the IK) are all optional, but a
+motion needs keyframes or `point_at`. The cloud model gets a body cheat sheet (joints, signs, limits, examples);
+the local fallback gets a shorter prompt and no motion.
+
+`motion/expressive.py` checks every motion, whoever wrote it: only known joints; angles clamped to the
+skills' limits; at most 12 keyframes and 10 s; speed limited by stretching time; arm, hand and waist locked
+while that hand holds an object; the whole path, including the way back to the start pose, dry-run
+through the collision checks (table, torso, other arm, objects, held object). Errors go back to the LLM
+for one repair, then the fallback gesture plays. It runs through the normal 50 Hz minimum-jerk executor,
+gated by mode and cancelled by STOP, and can't start during a pick or place.
+
+Motions that played are cached by normalised intent in `~/.cache/aibot/gestures.json` ("hi" and "hello"
+share `greet`), so a repeat is instant and free; `point_at` motions aren't cached, because objects move.
+Clear with `ros2 service call /aibot/planner/clear_gestures std_srvs/srv/Trigger`. The hand-written `wave`,
+`nod` and `shake_head` remain the offline fallback.
+
+**Camera in AI mode.** `webcam_enable(false)` stops MediaPipe and releases `/dev/video<N>`; `true` reopens
+it with retries. The window's video source depends only on the mode (`utils/video_source.py`): head
+camera with detections in AI, webcam with skeleton in mimic; switching or stopping keeps the current view,
+and frames from the other source are dropped. The optional webcam inset was left out: the camera is
+closed in AI mode, so there's nothing to show.
 
 ## How it works: mimic mode
 
@@ -404,8 +469,12 @@ Physical AI (headless commands; the GUI works the same with the windows on):
 - **Grasping is a weld shim**: the hand closes to a half fist and a DetachableJoint holds the
   object. Real grasp physics (friction, slip, finger contact) are not simulated or tested; the
   weld also lets things be held that a real hand would drop.
-- **Slow LLM/VLM on CPU:** ⟦LLM_LIMIT⟧ The VLM (gemma3:4b) needs about a minute per image, so it
-  is never in the control loop; verification is geometric (weld report + camera).
+- **Models:** ⟦LLM_LIMIT⟧ The cloud VLM wrongly says "yes" fairly often (table below), so geometry
+  stays authoritative. Cloud use needs OpenRouter credit: an account at zero gets intermittent 402s,
+  which fall back to the local models.
+- **Gestures:** the generated-motion rejection rate comes from a small sample. Two different greetings
+  can look alike, since the model often reuses the wave example. Under heavy load gestures look slow,
+  because they follow simulation time.
 - **The 20 cm hand needs room:** with the palm down the fingers stick out 10 cm beyond the grasp
   point. Objects closer than ~5 cm to a neighbour on all sides may be unreachable
   (`UNREACHABLE: collides with the object ...`), and closing the fingers can nudge a neighbour.
@@ -415,7 +484,7 @@ Physical AI (headless commands; the GUI works the same with the windows on):
 - **Perception** labels shapes from depth geometry only: no object categories beyond
   cube/box/block/can/mug/ball/bin/tray, and colours from a fixed palette. Objects inside a
   container merge with it in depth; the memory keeps them as "inside" instead.
-- **Cut, with notice:** voice input, the Anthropic backend, pinch grasps and OWL-ViT. Each was
+- **Cut, with notice:** voice input, the Anthropic backend, pinch grasps, OWL-ViT and the webcam inset. Each was
   optional, and none was needed for the acceptance tasks.
 
 ## Known pitfalls and fixes

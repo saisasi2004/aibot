@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Protocol
 
 from ..backends.base import BackendError, LLMBackend
-from ..skills.gestures import GESTURE_SKILLS, is_greeting
+from ..skills.gestures import GESTURE_SKILLS, is_greeting, needs_view
 from .gestures import GestureLibrary, intent_key
 from .plan import LOCAL_PLAN_SCHEMA, PLAN_SCHEMA, Plan, Step, World, ambiguous_mentions, parse_plan, validate
 from .prompt import build_messages
@@ -255,7 +255,7 @@ class PlannerAgent:
         world = self.runner.world()
         # a greeting needs no view of the table: react now and keep the scan for the first real task
         # (after a switch from mimic it cost 20-50 s before the wave could start)
-        if not is_greeting(rep.request) and (self.stale or not [o for o in world.objects if not o.held_by]):
+        if not is_greeting(rep.request) and needs_view(rep.request) and (self.stale or not [o for o in world.objects if not o.held_by]):
             self.log("looking at the table first (new in AI mode, or nothing known)")
             self.stale = False
             self.runner.refresh()          # not counted as "first motion": that is the first plan step

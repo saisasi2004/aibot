@@ -122,6 +122,12 @@ def parse_plan(data: object) -> Plan:
         steps.append(Step(**{k: str(s.get(k) or "").strip() for k in ("skill", "object", "target", "relation", "region")}))
     motion = data.get("motion")
     motion = motion if isinstance(motion, dict) and (motion.get("keyframes") or motion.get("point_at")) else None
+    # small models mix these up ({"kind": "answer", "steps": [wave]}): steps mean it is a plan, and a
+    # refusal or question has nothing to run. Normalising beats failing the request over a label.
+    if kind == "answer" and steps:
+        kind = "plan"
+    elif kind in ("impossible", "clarify"):
+        steps = []
     return Plan(kind, str(data.get("message", "")).strip(), steps, motion)
 
 

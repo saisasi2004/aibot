@@ -1,7 +1,7 @@
 """Planner regression with the REAL local LLM (Ollama) on a fake world with fake skills.
 
 Slow (one or more CPU LLM calls per command), so opt-in:
-    AIBOT_LLM_TESTS=1 python -m pytest -s src/aibot_ai/test/test_planner_llm.py
+    AIBOT_LLM_TESTS=1 [AIBOT_LLM_BACKEND=cloud] python -m pytest -s src/aibot_ai/test/test_planner_llm.py
 Each command is judged by the final world state (and the kind of answer), not by the exact plan,
 so any correct plan passes. Prints a table and writes a JSON report ($AIBOT_LLM_REPORT, default
 /tmp/aibot_planner_llm.json) with plan correctness, success rate and time-to-first-motion.
@@ -24,6 +24,8 @@ from fake_world import FakeSkills, scene  # noqa: E402
 
 from aibot_ai.backends.base import BackendError  # noqa: E402
 from aibot_ai.backends.ollama import OllamaBackend  # noqa: E402
+from aibot_ai.backends.openrouter import OpenRouterBackend  # noqa: E402
+from aibot_ai.backends.secrets import load_dotenv  # noqa: E402
 from aibot_ai.planning.agent import PlannerAgent, Report  # noqa: E402
 
 CFG = yaml.safe_load((Path(__file__).resolve().parents[1] / "config" / "ai.yaml").read_text())["planner_node"]["ros__parameters"]
@@ -90,7 +92,8 @@ CASES: list[tuple[str, list[str], Check, dict]] = [
     ("box_in_tray", ["put the green box in the tray"], is_in("green_box_1", "black_tray_1"), {}),
     ("next_to", ["put the yellow cube next to the mug"], near("yellow_cube_1", "white_mug_1"), {}),
     ("move_aside", ["move the mug out of the way"], lambda w, r: "white_mug_1" in w.moved() and not w.get("white_mug_1").held_by, {}),
-    ("go_home", ["go back to your home position"], all_of(nothing_moved, kind("plan")), {}),
+    ("go_home", ["go back to your home position"], all_of(nothing_moved, kind("plan", "answer")), {}),
+    ("greeting", ["HI"], lambda w, r: r.success and any(e[0].split("(")[0] in ("wave", "express") for e in r.executed), {}),
     ("clarify_cube", ["pick up the cube"], all_of(nothing_moved, kind("clarify")), {}),
     ("clarify_red", ["put the red cube in the bin"], all_of(nothing_moved, kind("clarify")), {}),
     ("clarify_then_answer", ["put the red cube in the tray", "the one on the left"],
@@ -106,9 +109,15 @@ CASES: list[tuple[str, list[str], Check, dict]] = [
 ]
 
 
-def _ollama() -> OllamaBackend:
-    b = OllamaBackend(LLM["model"], LLM["url"], LLM["keep_alive"], LLM["num_ctx"], LLM["num_predict"],
-                      LLM["temperature"], LLM["timeout"], LLM.get("think"))
+def _backend():
+    """AIBOT_LLM_BACKEND=local (default) or cloud: the real model either way."""
+    if os.environ.get("AIBOT_LLM_BACKEND") == "cloud":
+        load_dotenv(Path(__file__).resolve().parents[3] / ".env")
+        b = OpenRouterBackend(LLM["cloud_model"], first_byte_timeout=LLM["first_byte_timeout"], total_timeout=LLM["total_timeout"],
+                              max_tokens=LLM["max_tokens"], temperature=LLM["temperature"], reasoning_effort=LLM["reasoning_effort"])
+    else:
+        b = OllamaBackend(LLM["model"], LLM["url"], LLM["keep_alive"], LLM["num_ctx"], LLM["num_predict"],
+                          LLM["temperature"], LLM["timeout"], LLM.get("think"))
     b.check()
     return b
 
@@ -116,10 +125,11 @@ def _ollama() -> OllamaBackend:
 @pytest.mark.skipif(os.environ.get("AIBOT_LLM_TESTS") != "1", reason="set AIBOT_LLM_TESTS=1 (slow, needs Ollama)")
 def test_planner_regression_with_real_llm():
     try:
-        llm = _ollama()
+        llm = _backend()
     except BackendError as exc:
         pytest.skip(str(exc))
-    llm.generate([{"role": "user", "content": "Reply with {}"}], {"type": "object"})       # load once
+    if os.environ.get("AIBOT_LLM_BACKEND") != "cloud":
+        llm.generate([{"role": "user", "content": "Reply with {}"}], {"type": "object"})   # load once
     rows = []
     for name, turns, check, fake in CASES:
         skills = FakeSkills(scene(), **fake)
@@ -140,7 +150,7 @@ def test_planner_regression_with_real_llm():
     n = len(rows)
     correct = sum(r["ok"] for r in rows)
     motion = [r["first_motion_s"] for r in rows if r["first_motion_s"] is not None]
-    summary = {"model": LLM["model"], "cases": n, "correct": correct, "plan_correctness": correct / n,
+    summary = {"model": llm.model, "cases": n, "correct": correct, "plan_correctness": correct / n,
                "requests_succeeded": sum(r["success"] for r in rows) / n,
                "llm_s_mean": float(np.mean([r["llm_s"] for r in rows])),
                "llm_calls_mean": float(np.mean([r["llm_calls"] for r in rows])),

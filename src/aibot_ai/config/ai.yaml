@@ -132,7 +132,7 @@ planner_node:
       cloud_model: google/gemini-3.5-flash  
       first_byte_timeout: 6.0    # s until the first content (idle: under 2.3 s; a cold connection under sim load missed 4)
       total_timeout: 15.0        # s for the whole cloud call
-      max_tokens: 800
+      max_tokens: 500            # a plan with a motion fits; OpenRouter refuses calls the balance can't cover
       reasoning_effort: minimal  # Gemini's reasoning is mandatory: minimal is the lowest it accepts
       model: granite4.2:3b       # verified on the Ollama registry and installed (2.2 GB)
       url: http://localhost:11434
@@ -149,6 +149,7 @@ planner_node:
       describe_timeout: 10.0     # s for a scene description on failures and scene questions
     gestures:
       library: ~/.cache/aibot/gestures.json   # generated motions that worked; clear with /aibot/planner/clear_gestures
+    max_queue: 3                 # messages kept while busy (STOP or a mode change clears them)
     max_replans: 2               # after a failed step: re-plan with the failure as feedback
     repair_attempts: 1           # invalid plan: one retry with the validator's errors
     history_turns: 3             # earlier exchanges in the prompt ("put it back")

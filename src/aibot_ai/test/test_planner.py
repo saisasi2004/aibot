@@ -247,3 +247,35 @@ def test_head_swing_keeps_its_full_width_at_the_limit():
     assert all(lower[1] <= p <= upper[1] for p in pitch)
     assert np.allclose(ts[-1], rest)                           # ends where it started
     assert all(t[0] == 0.0 for t in ts)                        # only the asked axis moves
+
+
+@pytest.mark.parametrize("data,kind,n", [
+    ({"kind": "answer", "message": "Hi", "steps": [{"skill": "wave"}]}, "plan", 1),      # logged from granite
+    ({"kind": "answer", "message": "Hi", "steps": []}, "answer", 0),
+    ({"kind": "impossible", "message": "No", "steps": [{"skill": "wave"}]}, "impossible", 0),
+    ({"kind": "clarify", "message": "Which?", "steps": [{"skill": "home"}]}, "clarify", 0),
+])
+def test_kind_and_steps_are_normalised(data, kind, n):
+    p = parse_plan(data)
+    assert p.kind == kind and len(p.steps) == n
+
+
+def test_mislabelled_answer_with_steps_runs_instead_of_failing():
+    a, skills, said = agent([{"kind": "answer", "message": "I look at it.", "steps": [{"skill": "look_at", "object": "blue_cube_1"}]}])
+    rep = a.handle("look at the blue cube")
+    assert rep.success and "look_at(blue_cube_1)" in skills.calls and "could not" not in said[-1]
+
+
+def test_small_talk_skips_the_scan_but_tasks_do_not():
+    from aibot_ai.skills.gestures import needs_view
+    assert not needs_view("How does it feel to have a body??") and not needs_view("tell me a joke")
+    assert needs_view("what do you see?") and needs_view("point towards the red cube") and needs_view("put it in the bin")
+    a, skills, _ = agent([plan(kind="answer", message="It feels great.")])
+    a.stale = True
+    a.handle("How does it feel to have a body??")
+    assert "refresh" not in skills.calls and a.stale
+
+
+def test_prompt_speaks_as_the_robot():
+    from aibot_ai.planning.prompt import SYSTEM
+    assert "You are STAR1" in SYSTEM and "never say you are an AI" in SYSTEM
