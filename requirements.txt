@@ -1,0 +1,19 @@
+# Python packages for aibot_teleop, installed into ~/aibot/.venv by scripts/setup_env.sh.
+# The venv is created with --system-site-packages so ROS 2 Jazzy's rclpy, message packages and
+# scipy stay importable; only what ROS does not provide is installed here.
+
+# MediaPipe Tasks API (PoseLandmarker, HandLandmarker). 0.10.21 is the last 0.10 release with
+# cp312 wheels and pins numpy<2, which is exactly what we need (see below).
+mediapipe==0.10.21
+
+# ROS 2 Jazzy's compiled Python extensions (rclpy, cv_bridge, ...) are built against numpy 1.x.
+# numpy 2 in the venv would shadow the system copy and break them with ABI errors.
+numpy>=1.26,<2
+
+# MediaPipe depends on opencv-contrib-python, which provides the `cv2` module. Do NOT also
+# install opencv-python: both wheels ship a `cv2` package and overwrite each other's files.
+# 4.11.0.86 is the last release that accepts numpy 1.x (4.12 requires numpy>=2).
+opencv-contrib-python==4.11.0.86
+
+# No IK library: use_ik:=true uses aibot_teleop/retarget/arm_ik.py, a damped-least-squares solver on
+# the URDF chain (ikpy has no way to add the elbow hint / posture tasks this mode needs).

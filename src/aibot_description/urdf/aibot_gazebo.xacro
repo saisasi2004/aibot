@@ -1,0 +1,74 @@
+<?xml version="1.0"?>
+<!-- Gazebo Harmonic extras: the gz_ros2_control system plugin and grippy hand surfaces.
+
+     Note on link names inside Gazebo: the URDF->SDF converter lumps links joined by fixed joints
+     into their parent. E.g. left_hand_link (fixed to left_hand_base_link, fixed to
+     left_wrist_roll_link) becomes part of the gz link "left_wrist_roll_link". Anything that
+     addresses gz links by name (DetachableJoint, contact sensors) must use the lumped name. -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="aibot_grip_surface" params="link mu:=1.5">
+    <gazebo reference="${link}">
+      <mu1>${mu}</mu1>
+      <mu2>${mu}</mu2>
+    </gazebo>
+  </xacro:macro>
+
+  <xacro:macro name="aibot_hand_surfaces" params="side">
+    <xacro:aibot_grip_surface link="${side}_hand_link"/>
+    <xacro:aibot_grip_surface link="${side}_hand_thumb_bend_link"/>
+    <xacro:aibot_grip_surface link="${side}_hand_thumb_rota_link1"/>
+    <xacro:aibot_grip_surface link="${side}_hand_thumb_rota_link2"/>
+    <xacro:aibot_grip_surface link="${side}_hand_index_bend_link"/>
+    <xacro:aibot_grip_surface link="${side}_hand_index_rota_link1"/>
+    <xacro:aibot_grip_surface link="${side}_hand_index_rota_link2"/>
+    <xacro:aibot_grip_surface link="${side}_hand_mid_link1"/>
+    <xacro:aibot_grip_surface link="${side}_hand_mid_link2"/>
+    <xacro:aibot_grip_surface link="${side}_hand_ring_link1"/>
+    <xacro:aibot_grip_surface link="${side}_hand_ring_link2"/>
+    <xacro:aibot_grip_surface link="${side}_hand_pinky_link1"/>
+    <xacro:aibot_grip_surface link="${side}_hand_pinky_link2"/>
+  </xacro:macro>
+
+  <!-- Grasp fallback: one DetachableJoint per (hand, object). Physics-only finger grasps are
+       unreliable in Gazebo, so grasp_manager_node welds the object to the palm while the hand
+       is closed near it, and releases it when the hand opens.
+       NOTE: the plugin attaches automatically on startup (gz-sim 8: attachRequested{true});
+       grasp_manager_node detaches every pair at startup and re-detaches any unrequested attach.
+       parent_link is the gz (lumped) name: the palm lives in *_wrist_roll_link. -->
+  <xacro:macro name="aibot_grasp_joint" params="side object">
+    <gazebo>
+      <plugin filename="gz-sim-detachable-joint-system" name="gz::sim::systems::DetachableJoint">
+        <parent_link>${side}_wrist_roll_link</parent_link>
+        <child_model>${object}</child_model>
+        <child_link>link</child_link>
+        <attach_topic>/aibot/grasp/${side}/${object}/attach</attach_topic>
+        <detach_topic>/aibot/grasp/${side}/${object}/detach</detach_topic>
+        <output_topic>/aibot/grasp/${side}/${object}/state</output_topic>
+        <suppress_child_warning>true</suppress_child_warning>
+      </plugin>
+    </gazebo>
+  </xacro:macro>
+
+  <!-- objects: comma-separated model names, e.g. "cube_small,cylinder_can"; "" or "none" = no grasping -->
+  <xacro:macro name="aibot_grasp_joints" params="objects">
+    <xacro:if value="${objects.strip(', ') not in ('', 'none')}">
+      <xacro:property name="first" value="${objects.split(',')[0].strip()}"/>
+      <xacro:aibot_grasp_joint side="left" object="${first}"/>
+      <xacro:aibot_grasp_joint side="right" object="${first}"/>
+      <xacro:aibot_grasp_joints objects="${','.join(objects.split(',')[1:])}"/>
+    </xacro:if>
+  </xacro:macro>
+
+  <xacro:macro name="aibot_gazebo" params="controllers_file grasp_objects:=''">
+    <gazebo>
+      <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+        <parameters>${controllers_file}</parameters>
+      </plugin>
+    </gazebo>
+    <xacro:aibot_hand_surfaces side="left"/>
+    <xacro:aibot_hand_surfaces side="right"/>
+    <xacro:aibot_grasp_joints objects="${grasp_objects}"/>
+  </xacro:macro>
+
+</robot>

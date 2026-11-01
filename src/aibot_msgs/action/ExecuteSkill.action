@@ -1,0 +1,20 @@
+# One robot skill, executed by skill_server_node (/aibot/skills/execute).
+# skill: scan | look_at | home | locate | pick | place | place_in | move_aside | open_hand | release
+string skill
+string object_id                    # pick, move_aside, look_at: the object; place: the held object
+                                    # (optional); place_in: the container
+string text                         # locate(text), look_at a named region
+aibot_msgs/PlaceTarget place_target # place
+string side                         # "left" | "right" | "" (choose automatically)
+float32 timeout                     # s; 0 = the skill's default
+---
+bool success
+# OK | NOT_FOUND | AMBIGUOUS | UNREACHABLE | TOO_LARGE | GRASP_FAILED | PLACE_BLOCKED |
+# NOT_HOLDING | TIMEOUT | CANCELLED | NOT_AI_MODE | INVALID | BUSY
+string reason_code
+string message
+string object_id                    # e.g. what locate() found, what pick() holds
+geometry_msgs/Pose pose
+---
+string stage
+float32 progress

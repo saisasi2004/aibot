@@ -1,0 +1,9 @@
+# Randomise the tabletop (scene_manager_node, /aibot/scene/reset).
+int32 seed                 # same seed -> same layout
+int32 count                # graspable objects to put on the table (0 -> default)
+string[] types             # optional: only these model types / slot names (e.g. ["cube_small", "ball"])
+string[] containers        # containers to place; empty -> ["bin"]
+---
+bool success
+string message
+string[] placed            # slots now on the table (objects and containers)

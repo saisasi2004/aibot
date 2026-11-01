@@ -1,0 +1,120 @@
+# Physical AI mode parameters. Angles in rad, velocities as a fraction of the URDF limits.
+
+mode_manager_node:
+  ros__parameters:
+    initial_mode: mimic          # overridden by the launch argument mode:=mimic|ai
+    startup_delay: 4.0           # s before the first transition (let the other nodes come up)
+    startup_wait: 120.0          # s more to wait for /joint_states (slow Gazebo start) before trying anyway
+    service_timeout: 3.0         # s per service call in a transition
+    settle:
+      position_tolerance: 0.02   # rad: settled when no joint moved more than this ...
+      hold_time: 0.3             # ... over this window
+      timeout: 4.0
+
+skill_server_node:
+  ros__parameters:
+    rate_hz: 50.0                # command rate while a trajectory runs
+    speed: 0.5                   # fraction of URDF joint velocity limits for skill motions
+    max_joint_speed: 1.5         # rad/s cap on any joint ...
+    max_step_factor: 1.25        # ... and at most 1.25 ticks of trajectory time per tick after a stall:
+                                 # every command step <= 1.5 * 1.25 / 50 = 0.0375 rad
+    hand_close_time: 0.5         # s to ramp a hand open/closed
+    grasp_keepalive_hz: 5.0      # republish the AI grasp command so the grasp manager sees the source
+    default_timeout: 20.0        # s per skill unless the goal says otherwise (pick/place: below)
+    pick_timeout: 60.0
+    place_timeout: 60.0
+    # Skill IK. Waist range (yaw, roll, pitch; pitch < 0 leans forward) is tighter than the URDF:
+    # lean at most ~23 deg, no sideways roll.
+    ik:
+      waist_lower: [-0.6, -0.05, -0.40]
+      waist_upper: [0.6, 0.05, 0.10]
+    line_speed: 0.10             # m/s, Cartesian speed cap on straight-line moves
+    plan_budget: 25.0            # s of motion planning per pick/place before reporting UNREACHABLE
+    follow_sim_time: true        # play trajectories at the simulation's real-time factor (from /joint_states stamps)
+    rtf_window: 1.0              # s over which the real-time factor is measured
+    min_time_scale: 0.05
+    arrival_tolerance: 0.03      # rad: after a motion, wait until every moved arm/waist/head joint is this close ...
+    arrival_timeout: 4.0         # ... (s at most; the sim runs at ~0.45x real time with everything loaded)
+    grasp:
+      approach_height: 0.10      # m, pre-grasp above the grasp point, straight down from there
+      lift_height: 0.12          # m, straight up after closing
+      min_grasp_height: 0.025    # m above the table for the grasp point (fingers clear the table)
+      top_offset: 0.0            # m, grasp point below the object top. The palm surface is 1.1 cm in
+                                 # front of the grasp point (hand mesh: +-0.024 m vs offset 0.035), so
+                                 # 0 leaves 1.1 cm; 0.025 pressed the palm 1.4 cm into the object (tipped cans)
+      verify_timeout: 1.5        # s for the grasp manager to report the weld
+      grip_fraction: 0.5         # fingers close to this fraction of a fist (wrap, not through, the object)
+      still_there_radius: 0.03   # m: after lifting, a detection this close to the old spot = missed
+    place:
+      approach_heights: [0.10, 0.06, 0.03]   # m above the release pose, tried in order (tall objects)
+      drop_height: 0.01          # m, object bottom above its support when the hand opens
+      rim_clearance: 0.02        # m, object bottom above a container rim when dropping in
+      max_candidates: 12         # resolved spots tried (IK) before PLACE_BLOCKED/UNREACHABLE
+      confirm_radius: 0.04       # m, re-detected this close to the target = placed as planned
+      drop_wait: 0.5             # s after the release before the hand moves away
+      aim_tolerance: 0.015       # m: predicted landing further off than this -> re-aim once
+    scan_repeats: 3              # detect_now calls in a scan (memory smoothing)
+    gestures:                    # social reactions the planner uses (wave on greetings, nod/shake on replies)
+      wave_pose: [-0.4, -1.6, -1.0, -1.6, 0.0, 0.0, 0.0]   # right arm: hand beside the head (1.62 m), clear of
+                                                           # the table from home (FK + path check); left = mirror
+      wave_amplitude: 0.5        # rad of elbow yaw each way
+      wave_cycles: 2
+      nod_amplitude: 0.15        # rad neck pitch (from the scan pose 0.52 the upper limit clips the down half)
+      shake_amplitude: 0.3       # rad neck yaw
+    look_at_max_error: 0.35      # rad, target counts as in view (vertical half-FOV ~0.45 rad)
+    # Home pose per controller group (controller joint order). Head: look down at the table.
+    home:
+      waist: [0.0, 0.0, 0.0]
+      head: [0.0, 0.52]       # neck pitch limit minus margin: whole table in the head camera
+      left_arm: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      right_arm: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+scene_manager_node:
+  ros__parameters:
+    default_count: 4             # objects placed when a reset asks for 0
+    settle_time: 1.5             # s to wait after teleporting before answering
+    call_timeout: 2.0            # s per set_pose call
+
+perception_node:
+  ros__parameters:
+    detector: tabletop           # tabletop (depth segmentation, default) | yolo_world | color_blob
+    detect_rate_hz: 2.0          # only in AI mode (camera is not even subscribed in mimic)
+    depth_stride: 2              # use every 2nd pixel: 76.8k points per 640x480 frame
+    ai_only: true
+    self_filter:                 # robot's own arm removed from the cloud (TF), besides the hands
+      forearm_radius: 0.07       # m around samples along elbow -> wrist -> hand
+      forearm_step: 0.04
+    memory:
+      match_distance: 0.06       # m, association gate
+      alpha: 0.5                 # weight of a new observation
+      expiry: 20.0               # s unseen before an (unheld) object is forgotten (long enough
+                                 # to survive the arm occluding it during a pick/place)
+      tentative_hits: 3          # objects seen in fewer frames than this ...
+      tentative_expiry: 3.0      # ... are forgotten after this (single-frame artifacts)
+    yolo_world:
+      conf: 0.05
+      imgsz: 640
+    vlm:
+      model: gemma3:4b
+      url: http://localhost:11434
+      keep_alive: 10m
+      num_ctx: 4096
+      num_predict: 384
+      image_size: 448            # longest image side sent to the VLM
+
+planner_node:
+  ros__parameters:
+    llm_backend: ollama          # launch argument llm_backend:=ollama (the only backend; Anthropic was cut)
+    llm:
+      model: granite4.2:3b       # verified on the Ollama registry and installed (2.2 GB)
+      url: http://localhost:11434
+      keep_alive: 30m            # stay resident between requests while in AI mode
+      num_ctx: 4096
+      num_predict: 384           # a 6-step plan is ~150 tokens
+      temperature: 0.0           # deterministic plans
+      think: false               # granite4.2 reasons silently first: ~240 tokens / 80-120 s here; off: 2-8 s
+      timeout: 120.0             # s per LLM call (CPU)
+      warmup: true               # load the model when AI mode starts
+    max_replans: 2               # after a failed step: re-plan with the failure as feedback
+    repair_attempts: 1           # invalid plan: one retry with the validator's errors
+    history_turns: 3             # earlier exchanges in the prompt ("put it back")

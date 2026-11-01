@@ -1,0 +1,12 @@
+# Mark a perceived object as held by a hand ("" side = released) (/aibot/perception/set_held).
+# On release the skill server tells perception where it put the object, so the id survives
+# until the object is seen again; inside a container it may never be seen separately (it merges
+# with the container in depth), so it is kept for as long as the container is tracked.
+string object_id
+string side
+bool has_position
+geometry_msgs/Point position
+string container_id
+---
+bool success
+string message

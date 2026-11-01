@@ -1,0 +1,22 @@
+# colcon
+build/
+install/
+log/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# VS Code C++ extension index (browse.vc.db*, ~1 GB, regenerated automatically)
+.vscode/*.db*
+
+# MediaPipe models: downloaded by scripts/setup_env.sh
+src/aibot_teleop/models/*.task
+
+# Detector weights: downloaded by scripts/setup_ai.sh
+src/aibot_ai/models/*.pt
+
+# CLIP text-encoder weights for detector:=yolo_world (downloaded automatically by ultralytics; 354 MB)
+weights/

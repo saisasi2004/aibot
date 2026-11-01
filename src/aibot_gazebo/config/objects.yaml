@@ -1,0 +1,74 @@
+# Object pool for the pick_table world: geometry and physics of every model, the fixed world
+# slots that use them, the STAR1 hand limits, and where on the table things may be placed.
+#
+# Read by: scripts/generate_objects.py (writes models/<model>/model.sdf with exact inertias),
+# scene_manager_node (random layouts), skill_server_node (TOO_LARGE checks), tests.
+# The slot list must equal GRASP_OBJECTS in launch/sim.launch.py (checked by a unit test): the
+# DetachableJoint plugins are generated per (hand, slot) when the URDF is built.
+
+# What the STAR1 hand can hold with a top-down power grasp (the grasp itself is a weld in sim).
+# Palm 9.4 cm x 5 cm, fingers ~10 cm: an object narrower than 2 cm slips between the fingers in
+# the real hand, wider than 8 cm cannot be wrapped, taller than 14 cm cannot be lifted clear of
+# the table at full reach, heavier than 0.4 kg exceeds a sensible finger/wrist load.
+hand_limits:
+  min_width: 0.02          # m, smallest horizontal extent across the grasp
+  max_width: 0.08          # m, largest horizontal extent across the grasp (the minor axis)
+  max_height: 0.14         # m
+  max_mass: 0.4            # kg
+
+table:
+  top_z: 0.98              # m, table surface
+  x: [0.20, 0.60]          # table extent
+  y: [-0.18, 0.18]
+  # Where object centres may be placed: inside the head camera's view at the scan pose and
+  # reachable palm-down by at least one arm when the waist may lean/turn (the 0.40 m arm alone
+  # cannot reach the back of the table; skill IK includes waist yaw and pitch). Closer than
+  # x = 0.32 the forearm runs into the torso at the table centre (measured reachability map,
+  # aibot_ai/test/test_motion.py checks the whole area).
+  place_x: [0.32, 0.54]
+  place_y: [-0.15, 0.15]
+  edge_margin: 0.02        # m, keep footprints this far inside the table edge
+  clearance: 0.025         # m, minimum gap between object footprints
+
+parking:                   # unused slots wait on the floor behind the robot, out of every view
+  origin: [-2.0, -1.5]
+  spacing: 0.3
+
+# Models. shape: box (size x y z) | cylinder (radius, length) | sphere (radius) | bin | tray.
+# Colours are diffuse RGB; names in `color` are what perception/the planner call them.
+models:
+  cube_small:   {shape: box, size: [0.05, 0.05, 0.05], mass: 0.10, color: red, rgb: [0.90, 0.15, 0.15], mu: 1.0}
+  cube_blue:    {shape: box, size: [0.04, 0.04, 0.04], mass: 0.06, color: blue, rgb: [0.15, 0.35, 0.90], mu: 1.0}
+  cube_yellow:  {shape: box, size: [0.06, 0.06, 0.06], mass: 0.15, color: yellow, rgb: [0.95, 0.85, 0.15], mu: 1.0}
+  box_small:    {shape: box, size: [0.04, 0.06, 0.10], mass: 0.12, color: green, rgb: [0.15, 0.75, 0.20], mu: 1.0}
+  block_flat:   {shape: box, size: [0.07, 0.05, 0.025], mass: 0.08, color: purple, rgb: [0.55, 0.25, 0.80], mu: 1.0}
+  cylinder_can: {shape: cylinder, radius: 0.033, length: 0.12, mass: 0.15, color: silver, rgb: [0.70, 0.72, 0.75], mu: 1.0}
+  mug:          {shape: cylinder, radius: 0.038, length: 0.09, mass: 0.12, color: white, rgb: [0.95, 0.95, 0.95], mu: 1.0}
+  ball:         {shape: sphere, radius: 0.03, mass: 0.06, color: orange, rgb: [1.00, 0.50, 0.10], mu: 1.0}
+  container_bin:  {shape: bin, size: [0.13, 0.13, 0.06], wall: 0.006, color: gray, rgb: [0.35, 0.38, 0.42], static: true}
+  container_tray: {shape: tray, size: [0.12, 0.12, 0.012], color: black, rgb: [0.12, 0.12, 0.12], static: true}
+
+# World slots. Graspable slots get DetachableJoint plugins; containers do not.
+slots:
+  graspable:
+    cube_small: cube_small
+    cube_small_2: cube_small
+    cube_blue: cube_blue
+    cube_yellow: cube_yellow
+    box_small: box_small
+    block_flat: block_flat
+    cylinder_can: cylinder_can
+    mug: mug
+    ball: ball
+  containers:              # model names avoid "bin": model://bin would resolve to the system /bin
+    bin: container_bin
+    tray: container_tray
+
+# Layout when the world starts (before any /aibot/scene/reset): the four objects of the original
+# world plus the bin; everything else parked.
+default_layout:            # x, y, yaw
+  cube_small: [0.27, 0.10, 0.0]
+  box_small: [0.27, -0.10, 0.0]
+  cylinder_can: [0.35, 0.11, 0.0]
+  cube_small_2: [0.35, -0.11, 0.4]
+  bin: [0.46, 0.0, 0.0]

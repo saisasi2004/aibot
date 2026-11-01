@@ -1,0 +1,78 @@
+<?xml version="1.0"?>
+<!-- ros2_control interfaces for the 43 upper-body joints of STAR1:
+     waist 3 + head 2 + arms 7x2 + hands 12x2. Legs are locked (fixed joints) and not listed.
+
+     Every joint exposes a position command interface and position/velocity state interfaces.
+     sim_mode:=gazebo -> gz_ros2_control/GazeboSimSystem. Its position mode is a velocity servo:
+         v_cmd = position_proportional_gain * (q_cmd - q) * update_rate
+     clipped by the URDF effort/velocity limits. It cannot oscillate for gains <= 1 (the error
+     shrinks monotonically) and holds pose against gravity; the gain itself is set on the
+     gz_ros_control node in aibot_gazebo/config/controllers.yaml.
+     sim_mode:=mock   -> mock_components/GenericSystem: state mirrors the command (no physics),
+     handy for testing controllers and teleop nodes without Gazebo. -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="aibot_position_joint" params="name initial:=0.0">
+    <joint name="${name}">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">${initial}</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:macro name="aibot_arm_joints" params="side">
+    <xacro:aibot_position_joint name="${side}_shoulder_pitch_joint"/>
+    <xacro:aibot_position_joint name="${side}_shoulder_roll_joint"/>
+    <xacro:aibot_position_joint name="${side}_arm_yaw_joint"/>
+    <xacro:aibot_position_joint name="${side}_elbow_pitch_joint"/>
+    <xacro:aibot_position_joint name="${side}_elbow_yaw_joint"/>
+    <xacro:aibot_position_joint name="${side}_wrist_pitch_joint"/>
+    <xacro:aibot_position_joint name="${side}_wrist_roll_joint"/>
+  </xacro:macro>
+
+  <xacro:macro name="aibot_hand_joints" params="side">
+    <xacro:aibot_position_joint name="${side}_hand_thumb_bend_joint"/>
+    <xacro:aibot_position_joint name="${side}_hand_thumb_rota_joint1"/>
+    <xacro:aibot_position_joint name="${side}_hand_thumb_rota_joint2"/>
+    <xacro:aibot_position_joint name="${side}_hand_index_bend_joint"/>
+    <xacro:aibot_position_joint name="${side}_hand_index_joint1"/>
+    <xacro:aibot_position_joint name="${side}_hand_index_joint2"/>
+    <xacro:aibot_position_joint name="${side}_hand_mid_joint1"/>
+    <xacro:aibot_position_joint name="${side}_hand_mid_joint2"/>
+    <xacro:aibot_position_joint name="${side}_hand_ring_joint1"/>
+    <xacro:aibot_position_joint name="${side}_hand_ring_joint2"/>
+    <xacro:aibot_position_joint name="${side}_hand_pinky_joint1"/>
+    <xacro:aibot_position_joint name="${side}_hand_pinky_joint2"/>
+  </xacro:macro>
+
+  <xacro:macro name="aibot_ros2_control" params="sim_mode">
+    <ros2_control name="AibotUpperBody" type="system">
+      <hardware>
+        <xacro:if value="${sim_mode == 'gazebo'}">
+          <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+        </xacro:if>
+        <xacro:if value="${sim_mode == 'mock'}">
+          <plugin>mock_components/GenericSystem</plugin>
+          <param name="calculate_dynamics">false</param>
+        </xacro:if>
+      </hardware>
+
+      <!-- waist (3) -->
+      <xacro:aibot_position_joint name="waist_yaw_joint"/>
+      <xacro:aibot_position_joint name="waist_roll_joint"/>
+      <xacro:aibot_position_joint name="waist_pitch_joint"/>
+      <!-- head (2) -->
+      <xacro:aibot_position_joint name="neck_yaw_joint"/>
+      <xacro:aibot_position_joint name="neck_pitch_joint"/>
+      <!-- arms (7 + 7) -->
+      <xacro:aibot_arm_joints side="left"/>
+      <xacro:aibot_arm_joints side="right"/>
+      <!-- hands (12 + 12) -->
+      <xacro:aibot_hand_joints side="left"/>
+      <xacro:aibot_hand_joints side="right"/>
+    </ros2_control>
+  </xacro:macro>
+
+</robot>

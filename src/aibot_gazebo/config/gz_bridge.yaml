@@ -1,0 +1,30 @@
+# ros_gz_bridge topics. Joint states and commands go through gz_ros2_control, not the bridge.
+# Per-object topics (DetachableJoint attach/detach/state and the objects' poses) are generated
+# in sim.launch.py from its GRASP_OBJECTS list (the second, "grasp_bridge" node).
+
+- ros_topic_name: "/clock"
+  gz_topic_name: "/clock"
+  ros_type_name: "rosgraph_msgs/msg/Clock"
+  gz_type_name: "gz.msgs.Clock"
+  direction: GZ_TO_ROS
+
+# Head RGB-D camera (aibot_head_camera.xacro). Depth is 32FC1 in metres. No point cloud: the
+# perception node back-projects only the pixels inside detections, which is much cheaper.
+- ros_topic_name: "/head_camera/image"
+  gz_topic_name: "/head_camera/image"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+  lazy: true                # gz side subscribed (camera renders) only while a ROS node listens
+- ros_topic_name: "/head_camera/depth_image"
+  gz_topic_name: "/head_camera/depth_image"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+  lazy: true
+- ros_topic_name: "/head_camera/camera_info"
+  gz_topic_name: "/head_camera/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS
+  lazy: true

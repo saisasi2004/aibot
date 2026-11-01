@@ -1,0 +1,29 @@
+# Controller groups and joint order. Must match aibot_gazebo/config/controllers.yaml: each list
+# is the exact Float64MultiArray layout that JointGroupPositionController expects.
+controllers:
+  waist_controller: [waist_yaw_joint, waist_roll_joint, waist_pitch_joint]
+  head_controller: [neck_yaw_joint, neck_pitch_joint]
+  left_arm_controller: [left_shoulder_pitch_joint, left_shoulder_roll_joint, left_arm_yaw_joint,
+                        left_elbow_pitch_joint, left_elbow_yaw_joint, left_wrist_pitch_joint,
+                        left_wrist_roll_joint]
+  right_arm_controller: [right_shoulder_pitch_joint, right_shoulder_roll_joint, right_arm_yaw_joint,
+                         right_elbow_pitch_joint, right_elbow_yaw_joint, right_wrist_pitch_joint,
+                         right_wrist_roll_joint]
+  left_hand_controller: [left_hand_thumb_bend_joint, left_hand_thumb_rota_joint1, left_hand_thumb_rota_joint2,
+                         left_hand_index_bend_joint, left_hand_index_joint1, left_hand_index_joint2,
+                         left_hand_mid_joint1, left_hand_mid_joint2, left_hand_ring_joint1,
+                         left_hand_ring_joint2, left_hand_pinky_joint1, left_hand_pinky_joint2]
+  right_hand_controller: [right_hand_thumb_bend_joint, right_hand_thumb_rota_joint1, right_hand_thumb_rota_joint2,
+                          right_hand_index_bend_joint, right_hand_index_joint1, right_hand_index_joint2,
+                          right_hand_mid_joint1, right_hand_mid_joint2, right_hand_ring_joint1,
+                          right_hand_ring_joint2, right_hand_pinky_joint1, right_hand_pinky_joint2]
+
+# Optional per-joint corrections applied to every retargeted angle before filtering:
+#     q_cmd = sign * scale * q + offset        (offset in rad)
+# The mapping is derived from the URDF axes, so none are needed by default. Use these to trim
+# your own setup, e.g. a joint that moves the wrong way (sign: -1), or a waist that feels too
+# lively (scale: 0.7). Joints not listed keep sign 1, scale 1, offset 0.
+corrections:
+  waist_roll_joint: {scale: 1.0}
+  # left_elbow_yaw_joint: {sign: -1.0}
+  # neck_pitch_joint: {offset: 0.05}

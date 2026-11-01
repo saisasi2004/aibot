@@ -1,0 +1,5 @@
+# Switch the operating mode (mode_manager_node, /aibot/set_mode).
+string mode       # "mimic" | "ai"
+---
+bool success
+string message

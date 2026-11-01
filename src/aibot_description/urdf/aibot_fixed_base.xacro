@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<!-- Weld the pelvis (waist_yaw_link, the root after re-rooting) to the world so the upper body
+     can be teleoperated without balancing. The pelvis is raised so the soles of the locked,
+     upright legs sit `ground_clearance` above z = 0; star1_sole_depth is computed from the
+     meshes by scripts/generate_description.py and defined in aibot_body.xacro.
+
+     world_to_pelvis_joint is the one joint not present upstream. -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="aibot_fixed_base" params="ground_clearance:=0.005">
+    <link name="world"/>
+    <joint name="world_to_pelvis_joint" type="fixed">
+      <parent link="world"/>
+      <child link="waist_yaw_link"/>
+      <origin xyz="0 0 ${star1_sole_depth + ground_clearance}" rpy="0 0 0"/>
+    </joint>
+  </xacro:macro>
+
+</robot>

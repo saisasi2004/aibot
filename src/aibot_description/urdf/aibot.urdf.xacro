@@ -1,0 +1,53 @@
+<?xml version="1.0"?>
+<!-- RobotEra STAR1 prepared for fixed-base upper-body teleoperation.
+
+     xacro aibot.urdf.xacro                       RViz only (no ros2_control tag)
+     xacro aibot.urdf.xacro sim_mode:=mock        ros2_control with mock hardware (no physics)
+     xacro aibot.urdf.xacro sim_mode:=gazebo controllers_file:=/abs/controllers.yaml
+-->
+<robot name="star1" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:arg name="sim_mode" default="none"/>          <!-- none | mock | gazebo -->
+  <xacro:arg name="fixed_base" default="true"/>        <!-- weld the pelvis to the world -->
+  <xacro:arg name="lock_legs" default="true"/>         <!-- legs fixed at the README upright pose -->
+  <xacro:arg name="simple_collision" default="true"/>  <!-- convex hulls instead of visual meshes -->
+  <xacro:arg name="controllers_file" default=""/>      <!-- gazebo only: controller_manager YAML -->
+  <xacro:arg name="grasp_objects" default=""/>         <!-- gazebo only: comma-separated graspable models -->
+  <xacro:arg name="head_camera" default="true"/>       <!-- head RGB-D camera frames (+ gz sensor in gazebo) -->
+  <xacro:arg name="camera_width" default="640"/>
+  <xacro:arg name="camera_height" default="480"/>
+  <xacro:arg name="camera_rate" default="10"/>
+  <xacro:arg name="camera_hfov_deg" default="69"/>
+  <xacro:arg name="camera_near" default="0.15"/>
+  <xacro:arg name="camera_far" default="3.0"/>
+  <xacro:arg name="camera_mount_pitch" default="0.0"/>
+
+  <xacro:property name="sim_mode" value="$(arg sim_mode)"/>
+
+  <xacro:include filename="$(find aibot_description)/urdf/aibot_body.xacro"/>
+  <xacro:include filename="$(find aibot_description)/urdf/aibot_fixed_base.xacro"/>
+  <xacro:include filename="$(find aibot_description)/urdf/aibot_ros2_control.xacro"/>
+  <xacro:include filename="$(find aibot_description)/urdf/aibot_gazebo.xacro"/>
+  <xacro:include filename="$(find aibot_description)/urdf/aibot_head_camera.xacro"/>
+
+  <xacro:aibot_body lock_legs="$(arg lock_legs)" simple_collision="$(arg simple_collision)"/>
+
+  <xacro:if value="$(arg head_camera)">
+    <xacro:aibot_head_camera width="$(arg camera_width)" height="$(arg camera_height)" rate="$(arg camera_rate)"
+                             hfov_deg="$(arg camera_hfov_deg)" near="$(arg camera_near)" far="$(arg camera_far)"
+                             mount_pitch="$(arg camera_mount_pitch)" sim="${sim_mode == 'gazebo'}"/>
+  </xacro:if>
+
+  <xacro:if value="$(arg fixed_base)">
+    <xacro:aibot_fixed_base/>
+  </xacro:if>
+
+  <xacro:if value="${sim_mode != 'none'}">
+    <xacro:aibot_ros2_control sim_mode="${sim_mode}"/>
+  </xacro:if>
+
+  <xacro:if value="${sim_mode == 'gazebo'}">
+    <xacro:aibot_gazebo controllers_file="$(arg controllers_file)" grasp_objects="$(arg grasp_objects)"/>
+  </xacro:if>
+
+</robot>

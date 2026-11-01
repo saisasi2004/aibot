@@ -1,0 +1,31 @@
+# Node parameters for `ros2 launch aibot_bringup teleop.launch.py`.
+# Launch arguments (camera_id, mirror, use_ik, pose_model, camera_gui, calibrate) override
+# the matching entries below. retarget_node's full parameter set with explanations lives in
+# aibot_teleop/config/retarget.yaml; anything set here overrides it.
+
+webcam_node:
+  ros__parameters:
+    width: 640
+    height: 480
+    fps: 30
+    pose_model: full              # full (default, better 3D) | lite (~4 ms faster)
+    num_hands: 2
+    min_detection_confidence: 0.5
+    min_presence_confidence: 0.5
+    min_tracking_confidence: 0.5
+    max_hand_association_distance: 0.12
+    mirror_debug_image: true      # display only; landmarks always refer to the raw image
+    draw_skeleton: true
+    debug_image_scale: 0.5        # ROS /teleop/debug_image (RViz) is down-scaled; the GUI is full size
+
+retarget_node:
+  ros__parameters:
+    lost_timeout: 0.5
+
+grasp_manager_node:
+  ros__parameters:
+    grasp_radius: 0.08            # m from the hand's grasp point to an object's centre
+    grasp_offset:                 # grasp point in {side}_hand_link: between palm and curled fingers
+      left: [0.0, -0.035, -0.10]
+      right: [0.0, 0.035, -0.10]
+    startup_timeout: 15.0

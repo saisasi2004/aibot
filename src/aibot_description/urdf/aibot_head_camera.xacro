@@ -1,0 +1,71 @@
+<?xml version="1.0"?>
+<!-- Head RGB-D camera for the Physical AI mode, mounted on STAR1's RealSense-style bracket.
+
+     head_rs_link (upstream, fixed to neck_pitch_link) has its z axis along the optical axis,
+     pointing forward and 30 deg down, and its 12 cm long axis left-right, like a RealSense D4xx
+     frame. Added frames:
+       head_camera_link           x forward, y left, z up: Gazebo cameras look along +x
+       head_camera_optical_frame  ROS optical convention: z forward, x right, y down
+     With neck pitch p the camera looks (30 deg + p + mount_pitch) below horizontal. Verified in
+     Gazebo: at the AI home/scan head pitch 0.52 rad (limit 0.54 minus the 0.02 rad margin) the whole
+     table, front edge included, and every object is in view; at 0.45 rad the front 5 cm are cut.
+     So the upstream mount is kept (mount_pitch 0).
+
+     The URDF->SDF converter lumps these fixed links into neck_pitch_link; the sensor is moved
+     with them and its images carry frame_id head_camera_optical_frame (gz_frame_id). -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="aibot_head_camera" params="width:=640 height:=480 rate:=10 hfov_deg:=69 near:=0.15 far:=3.0
+                                                mount_pitch:=0.0 sim:=false">
+    <link name="head_camera_link"/>
+    <joint name="head_camera_joint" type="fixed">
+      <parent link="head_rs_link"/>
+      <child link="head_camera_link"/>
+      <!-- rpy (pi/2, -pi/2, 0): x_cam = z_rs (optical axis), y_cam = -x_rs (left), z_cam = -y_rs (up) -->
+      <origin xyz="0 0 0" rpy="${pi / 2} ${-pi / 2} 0"/>
+    </joint>
+    <link name="head_camera_aligned_link"/>
+    <joint name="head_camera_mount_joint" type="fixed">
+      <parent link="head_camera_link"/>
+      <child link="head_camera_aligned_link"/>
+      <origin xyz="0 0 0" rpy="0 ${mount_pitch} 0"/>   <!-- optional extra tilt (+ = down) -->
+    </joint>
+    <link name="head_camera_optical_frame"/>
+    <joint name="head_camera_optical_joint" type="fixed">
+      <parent link="head_camera_aligned_link"/>
+      <child link="head_camera_optical_frame"/>
+      <origin xyz="0 0 0" rpy="${-pi / 2} 0 ${-pi / 2}"/>
+    </joint>
+
+    <xacro:if value="${sim}">
+      <gazebo reference="head_camera_aligned_link">
+        <sensor name="head_camera" type="rgbd_camera">
+          <always_on>true</always_on>
+          <update_rate>${rate}</update_rate>
+          <visualize>false</visualize>
+          <topic>head_camera</topic>
+          <gz_frame_id>head_camera_optical_frame</gz_frame_id>
+          <camera>
+            <horizontal_fov>${hfov_deg * pi / 180}</horizontal_fov>
+            <image>
+              <width>${width}</width>
+              <height>${height}</height>
+              <format>R8G8B8</format>
+            </image>
+            <clip>
+              <near>${near}</near>
+              <far>${far}</far>
+            </clip>
+            <depth_camera>
+              <clip>
+                <near>${near}</near>
+                <far>${far}</far>
+              </clip>
+            </depth_camera>
+          </camera>
+        </sensor>
+      </gazebo>
+    </xacro:if>
+  </xacro:macro>
+
+</robot>

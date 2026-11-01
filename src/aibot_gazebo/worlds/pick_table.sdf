@@ -1,0 +1,192 @@
+<?xml version="1.0"?>
+<!-- STAR1 teleop pick world.
+
+     The robot is spawned by sim.launch.py at the origin facing +X; its pelvis is welded at
+     z = 1.017 m, shoulders at z ~ 1.33 m, y = +-0.245 m. Arm reach to the palm is ~0.56 m.
+     Table: x 0.20..0.60 (front edge clear of the thighs, x <= 0.115), |y| <= 0.18 (the hanging
+     arms swing past its sides instead of under it), top at z = 0.98 (robot elbow height: the
+     0.40 m arm cannot reach down to a lower table).
+     Objects: front row x = 0.28, back row x = 0.38, both reachable palm-down without leaning. All start 1 mm above the table so nothing begins in penetration. -->
+<sdf version="1.9">
+  <world name="pick_table">
+
+    <physics name="1ms" type="dart">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+    <gravity>0 0 -9.81</gravity>
+
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-contact-system" name="gz::sim::systems::Contact"/>
+    <!-- Renders the robot's head RGB-D camera (Physical AI mode). A camera only renders while
+         something subscribes to its topics, so mimic-only sessions pay almost nothing for it. -->
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+    <scene>
+      <ambient>0.5 0.5 0.5 1</ambient>
+      <background>0.75 0.78 0.82 1</background>
+      <shadows>true</shadows>
+      <grid>false</grid>
+    </scene>
+
+    <gui fullscreen="0">
+      <plugin filename="MinimalScene" name="3D View">
+        <gz-gui>
+          <title>3D View</title>
+          <property type="bool" key="showTitleBar">false</property>
+          <property type="string" key="state">docked</property>
+        </gz-gui>
+        <engine>ogre2</engine>
+        <scene>scene</scene>
+        <ambient_light>0.5 0.5 0.5</ambient_light>
+        <background_color>0.75 0.78 0.82</background_color>
+        <!-- in front of the robot, slightly to its right, looking back at it (mirror view) -->
+        <camera_pose>2.4 -0.9 1.7 0 0.2 2.78</camera_pose>
+      </plugin>
+      <plugin filename="GzSceneManager" name="Scene Manager">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="width" type="double">5</property>
+          <property key="height" type="double">5</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+        </gz-gui>
+      </plugin>
+      <plugin filename="InteractiveViewControl" name="Interactive view control">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="width" type="double">5</property>
+          <property key="height" type="double">5</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+        </gz-gui>
+      </plugin>
+      <plugin filename="CameraTracking" name="Camera Tracking">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="width" type="double">5</property>
+          <property key="height" type="double">5</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+        </gz-gui>
+      </plugin>
+      <plugin filename="MarkerManager" name="Marker manager">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="width" type="double">5</property>
+          <property key="height" type="double">5</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+        </gz-gui>
+      </plugin>
+      <plugin filename="SelectEntities" name="Select Entities">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="width" type="double">5</property>
+          <property key="height" type="double">5</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+        </gz-gui>
+      </plugin>
+      <plugin filename="VisualizationCapabilities" name="Visualization Capabilities">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="width" type="double">5</property>
+          <property key="height" type="double">5</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+        </gz-gui>
+      </plugin>
+      <plugin filename="WorldControl" name="World control">
+        <gz-gui>
+          <title>World control</title>
+          <property type="bool" key="showTitleBar">false</property>
+          <property type="bool" key="resizable">false</property>
+          <property type="double" key="height">72</property>
+          <property type="double" key="z">1</property>
+          <property type="string" key="state">floating</property>
+          <anchors target="3D View">
+            <line own="left" target="left"/>
+            <line own="bottom" target="bottom"/>
+          </anchors>
+        </gz-gui>
+        <play_pause>true</play_pause>
+        <step>true</step>
+        <start_paused>false</start_paused>
+        <use_event>true</use_event>
+      </plugin>
+      <plugin filename="WorldStats" name="World stats">
+        <gz-gui>
+          <title>World stats</title>
+          <property type="bool" key="showTitleBar">false</property>
+          <property type="bool" key="resizable">false</property>
+          <property type="double" key="height">110</property>
+          <property type="double" key="width">290</property>
+          <property type="double" key="z">1</property>
+          <property type="string" key="state">floating</property>
+          <anchors target="3D View">
+            <line own="right" target="right"/>
+            <line own="bottom" target="bottom"/>
+          </anchors>
+        </gz-gui>
+        <sim_time>true</sim_time>
+        <real_time>true</real_time>
+        <real_time_factor>true</real_time_factor>
+        <iterations>true</iterations>
+      </plugin>
+      <plugin filename="EntityTree" name="Entity tree"/>
+      <plugin filename="ComponentInspector" name="Component inspector"/>
+    </gui>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.85 0.85 0.85 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation><range>1000</range><constant>0.9</constant><linear>0.01</linear><quadratic>0.001</quadratic></attenuation>
+      <direction>-0.4 0.3 -0.9</direction>
+    </light>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><plane><normal>0 0 1</normal><size>20 20</size></plane></geometry>
+          <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode></friction></surface>
+        </collision>
+        <visual name="visual">
+          <geometry><plane><normal>0 0 1</normal><size>20 20</size></plane></geometry>
+          <material>
+            <ambient>0.55 0.55 0.55 1</ambient><diffuse>0.65 0.65 0.65 1</diffuse><specular>0.1 0.1 0.1 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <include>
+      <name>table</name>
+      <uri>model://table</uri>
+      <pose>0.40 0 0 0 0 0</pose>
+    </include>
+
+    <!-- BEGIN GENERATED-OBJECTS: scripts/generate_objects.py from config/objects.yaml - DO NOT EDIT.
+         Slots on the table follow default_layout; the others are parked behind the robot. -->
+    <include><name>cube_small</name><uri>model://cube_small</uri><pose>0.270 0.100 1.0060 0 0 0.000</pose></include>
+    <include><name>cube_small_2</name><uri>model://cube_small</uri><pose>0.350 -0.110 1.0060 0 0 0.400</pose></include>
+    <include><name>cube_blue</name><uri>model://cube_blue</uri><pose>-2.000 -1.500 0.0210 0 0 0.000</pose></include>
+    <include><name>cube_yellow</name><uri>model://cube_yellow</uri><pose>-2.300 -1.500 0.0310 0 0 0.000</pose></include>
+    <include><name>box_small</name><uri>model://box_small</uri><pose>0.270 -0.100 1.0310 0 0 0.000</pose></include>
+    <include><name>block_flat</name><uri>model://block_flat</uri><pose>-2.600 -1.500 0.0135 0 0 0.000</pose></include>
+    <include><name>cylinder_can</name><uri>model://cylinder_can</uri><pose>0.350 0.110 1.0410 0 0 0.000</pose></include>
+    <include><name>mug</name><uri>model://mug</uri><pose>-2.900 -1.500 0.0460 0 0 0.000</pose></include>
+    <include><name>ball</name><uri>model://ball</uri><pose>-3.200 -1.500 0.0310 0 0 0.000</pose></include>
+    <include><name>bin</name><uri>model://container_bin</uri><pose>0.460 0.000 0.9810 0 0 0.000</pose></include>
+    <include><name>tray</name><uri>model://container_tray</uri><pose>-3.500 -1.500 0.0010 0 0 0.000</pose></include>
+    <!-- END GENERATED-OBJECTS -->
+
+  </world>
+</sdf>

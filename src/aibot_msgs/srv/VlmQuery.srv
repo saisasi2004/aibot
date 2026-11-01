@@ -1,0 +1,7 @@
+# Ask the vision-language model about the current head-camera image (/aibot/vlm/describe|verify).
+string question                 # verify: the condition; describe: ignored
+---
+bool success
+string answer_json              # describe: {"objects": [...], "relations": [...]}; verify: {"answer": bool, "reason": str}
+float32 latency_s
+string message

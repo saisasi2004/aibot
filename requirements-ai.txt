@@ -1,0 +1,21 @@
+# Physical AI mode, OPTIONAL extras. Installed into ~/aibot/.venv by scripts/setup_ai.sh WITH_YOLO=1.
+#
+# The default AI pipeline needs nothing beyond requirements.txt: the tabletop depth detector uses
+# numpy + OpenCV, the planner and VLM talk to the local Ollama server over HTTP with the Python
+# standard library. These packages are only for the alternative detector:=yolo_world
+# (open-vocabulary 2D detector; measured worse than tabletop here, see README).
+#
+# CPU wheels (the MX550's 2 GB are not worth CUDA); numpy stays <2 (see requirements.txt).
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.14.1+cpu
+torchvision==0.29.1+cpu
+polars==2.0.0
+ultralytics-thop==2.2.3
+psutil>=5.9
+ftfy==6.3.1
+regex
+tqdm
+# YOLO-World's text encoder (ultralytics' CLIP fork, pinned to the commit that was tested)
+clip @ git+https://github.com/ultralytics/CLIP.git@7ffa84b3bfa40c42ecc1c77147a855e69cb2dd40
+# ultralytics itself is installed by setup_ai.sh with --no-deps: it hard-requires opencv-python,
+# which would overwrite the cv2 of opencv-contrib-python (MediaPipe's). Tested: ultralytics==8.4.188

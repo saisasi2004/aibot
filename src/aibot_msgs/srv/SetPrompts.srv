@@ -1,0 +1,5 @@
+# Text prompts for open-vocabulary detection (/aibot/perception/set_prompts). Empty -> defaults.
+string[] prompts
+---
+bool success
+string message

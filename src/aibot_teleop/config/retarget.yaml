@@ -1,0 +1,54 @@
+# retarget_node parameters (defaults; aibot_bringup/config/teleop_params.yaml and launch
+# arguments override them). Angles in rad, velocities in rad/s, cutoffs in Hz.
+retarget_node:
+  ros__parameters:
+    mirror: false                # true: robot moves like your mirror image (your right -> its left)
+    use_ik: false                # true: wrist-position IK with elbow hint instead of direct angles
+    calibrate_on_startup: true   # wait for a 3 s T-pose before streaming
+    calibration:
+      duration: 3.0
+      timeout: 30.0              # no T-pose by then -> default neutral pose and arm lengths
+
+    visibility_threshold: 0.5    # BlazePose visibility needed for a limb to be used
+    hand_score_threshold: 0.5
+    lost_timeout: 0.5            # s without landmarks -> status LOST (robot holds its pose)
+    limit_margin: 0.02           # stay this far inside every URDF joint limit
+    hips:                        # use the spine for torso pitch/roll once the hips are this visible
+      visible_on: 0.7
+      visible_off: 0.4
+
+    enable:
+      waist: true
+      head: true
+      arms: true
+      hands: true
+    gain:
+      waist: 1.0
+      head: 1.0
+
+    # One Euro filter: cutoff rises with speed (fc = min_cutoff + beta * |velocity|), so small
+    # jitter is removed at rest while fast motion passes with little lag. Lower min_cutoff = calmer
+    # but laggier at rest; higher beta = less lag during fast motion.
+    filter:
+      d_cutoff: 1.0
+      min_cutoff: {waist: 0.8, head: 1.0, arm: 1.2, hand: 1.5}
+      beta: {waist: 0.3, head: 0.4, arm: 0.6, hand: 0.4}
+    max_velocity: {waist: 1.0, head: 2.5, arm: 3.0, hand: 8.0}   # also capped by the URDF limits
+    deadband: {waist: 0.01, head: 0.01, arm: 0.008, hand: 0.02}
+
+    # Mode hand-over: whenever streaming resumes (after a pause or Physical AI mode), restart from
+    # the robot's actual joint states and glide to the operator's pose at most max_velocity,
+    # for at least `duration` s and until within `converged` rad (at most max_duration s).
+    mode_required: false         # aibot_bringup sets true: only publish while /aibot/mode == mimic
+    resume:
+      max_velocity: 1.0          # rad/s -> <= 0.033 rad per 30 Hz command step
+      duration: 2.0
+      max_duration: 6.0
+      converged: 0.05
+      tolerance: 0.2             # rad: warn about joints this far from their setpoint (blocked) on resume
+    recalibrate_hint_after: 120.0  # s of pause after which the status suggests recalibrating
+
+    grasp:
+      close_threshold: 0.6       # hand closure (0 open .. 1 fist) to start a grasp
+      open_threshold: 0.4        # closure below which the grasp is released (hysteresis)
+      confirm_frames: 3          # consecutive frames needed to switch state
