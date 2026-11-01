@@ -60,6 +60,7 @@ from aibot_teleop.utils.mode_gate import ModeGate
 from .geometry.place import CONTAINER_LABELS, PlaceResolver, PlaceSolution, WorldObject, regions
 from .motion.arm_motion import ArmMotion, MotionConfig
 from .motion.executor import TrajectoryExecutor
+from .motion.expressive import Limits, MotionError, MotionValidator, hand_poses
 from .motion.ik import HeadPointer
 from .motion.trajectory import PathTrajectory, Trajectory
 from .skills.gestures import swing_targets
@@ -151,6 +152,17 @@ class SkillServerNode(Node):
         self.motion = ArmMotion(urdf, self.jm.names, self.jm.limits.lower, self.jm.limits.upper, self.table,
                                 MotionConfig(), waist_lower=np.array(p("ik.waist_lower", [-0.6, -0.05, -0.40]).value),
                                 waist_upper=np.array(p("ik.waist_upper", [0.6, 0.05, 0.10]).value))
+        self.point_height: float = p("gestures.point_height", 0.15).value
+        names = [self.jm.names[i] for i in self.jm.groups["right_hand"]]
+        lim_lo, lim_hi = self.jm.limits.lower.copy(), self.jm.limits.upper.copy()
+        for side in SIDES:                      # the skills' tighter limits: waist range, no elbow hyperextension
+            idx = self.motion.idx[side]
+            lim_lo[idx], lim_hi[idx] = self.motion.solvers[side].lower, self.motion.solvers[side].upper
+        close = hand_presets(HandMapping())["close"]
+        self.motion_validator = MotionValidator(
+            self.jm.names, {g: np.array(v) for g, v in self.jm.groups.items()}, lim_lo, lim_hi, hand_poses(names, close),
+            self.motion.path_hit, self._plan_point,
+            Limits(p("gestures.max_keyframes", 12).value, p("gestures.max_expanded", 30).value, p("gestures.max_time", 10.0).value))
         self.neck_idx = np.array([self.jm.index[n] for n in ("neck_yaw_joint", "neck_pitch_joint")])
         self.waist_idx = np.array([self.jm.index[n] for n in ("waist_yaw_joint", "waist_roll_joint", "waist_pitch_joint")])
         self.head = HeadPointer(urdf, self.jm.limits.lower[self.neck_idx], self.jm.limits.upper[self.neck_idx])
@@ -200,6 +212,7 @@ class SkillServerNode(Node):
             "place_in": self.skill_place_in, "move_aside": self.skill_move_aside,
             "open_hand": self.skill_open_hand, "close_hand": self.skill_close_hand, "release": self.skill_release,
             "wave": self.skill_wave, "nod": self.skill_nod, "shake_head": self.skill_shake_head,
+            "express": self.skill_express,
         }
         self._busy = threading.Lock()
         self.action = ActionServer(self, ExecuteSkill, "/aibot/skills/execute", self._execute,
@@ -685,6 +698,40 @@ class SkillServerNode(Node):
             if not r.success:
                 return r
         return SkillResult.ok(what)
+
+    def skill_express(self, goal, should_abort: Abort, feedback: Feedback) -> SkillResult:
+        """Play a declarative motion from the planner: validated here, whoever wrote it."""
+        try:
+            spec = json.loads(goal.motion_json or goal.text)
+        except ValueError as exc:
+            return SkillResult.fail("INVALID", f"motion is not JSON: {exc}")
+        self.update_scene()
+        q = self.start_pose()
+        try:
+            prep = self.motion_validator.prepare(spec, q, {s_: (h.id if h else "") for s_, h in self.holding.items()})
+        except MotionError as exc:
+            return SkillResult.fail("INVALID", str(exc))
+        for w in prep.warnings:
+            self.get_logger().info(f"express: {w}")
+        feedback("expressing", 0.1)
+        traj = Trajectory([q] + prep.waypoints, self.v_max, 1.0, self.motion_validator.limits.min_step, prep.durations)
+        res = self._run(traj, prep.groups, should_abort, "express")
+        return SkillResult.ok(f"played {spec.get('intent', 'motion')} in {traj.duration:.1f} s") if res.success else res
+
+    def _plan_point(self, arm: str, object_id: str, q: np.ndarray) -> list[np.ndarray]:
+        """Waypoints to the hand above an object, for point_at (raises ValueError if impossible)."""
+        o = self.find(object_id)
+        if o is None:
+            raise ValueError(f"unknown object '{object_id}'")
+        target = _xyz(o) + [0.0, 0.0, 0.5 * float(o.size.z) + self.point_height]
+        r = self.motion.reach(arm, q, target)
+        if not r.reachable:
+            raise ValueError(f"the {arm} arm cannot reach above {object_id}")
+        goal = self.motion.with_arm(arm, q, r.q)
+        wps, why = self.motion.joint_move(arm, q, goal)
+        if wps is None:
+            raise ValueError(why)
+        return wps
 
     def skill_nod(self, goal, should_abort: Abort, feedback: Feedback) -> SkillResult:
         return self._head_gesture(1, self.nod_amplitude, should_abort, "nodded")

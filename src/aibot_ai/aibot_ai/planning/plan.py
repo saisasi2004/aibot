@@ -14,10 +14,11 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from ..motion.expressive import MOTION_SCHEMA
 from ..geometry.place import CONTAINER_LABELS, FLAT_TOP_LABELS, REGION_NAMES
 from ..skills.matching import SHAPES, parse
 
-PLANNER_SKILLS = ("scan", "pick", "place", "move_aside", "look_at", "home", "release", "wave", "nod", "shake_head")
+PLANNER_SKILLS = ("scan", "pick", "place", "move_aside", "look_at", "home", "release", "wave", "nod", "shake_head", "express")
 PLACE_RELATIONS = ("in", "on", "left_of", "right_of", "in_front_of", "behind", "at_region")
 KINDS = ("plan", "clarify", "impossible", "answer")
 MAX_STEPS = 16
@@ -42,9 +43,14 @@ PLAN_SCHEMA: dict = {
                 "required": ["skill"],
             },
         },
+        "motion": MOTION_SCHEMA,
     },
     "required": ["kind", "message", "steps"],
 }
+
+
+# for models that do not design motions (the local fallback): less to decode
+LOCAL_PLAN_SCHEMA: dict = {**PLAN_SCHEMA, "properties": {k: v for k, v in PLAN_SCHEMA["properties"].items() if k != "motion"}}
 
 
 @dataclass
@@ -54,6 +60,7 @@ class Step:
     target: str = ""
     relation: str = ""
     region: str = ""
+    motion: str = ""                  # express: the motion description (JSON)
 
     def text(self) -> str:
         if self.skill == "place":
@@ -68,6 +75,7 @@ class Plan:
     kind: str
     message: str
     steps: list[Step] = field(default_factory=list)
+    motion: dict | None = None        # a gesture the LLM designed, validated later by the skill server
 
 
 @dataclass
@@ -112,7 +120,9 @@ def parse_plan(data: object) -> Plan:
         if not isinstance(s, dict):
             raise ValueError(f"step is not an object: {s!r}")
         steps.append(Step(**{k: str(s.get(k) or "").strip() for k in ("skill", "object", "target", "relation", "region")}))
-    return Plan(kind, str(data.get("message", "")).strip(), steps)
+    motion = data.get("motion")
+    motion = motion if isinstance(motion, dict) and (motion.get("keyframes") or motion.get("point_at")) else None
+    return Plan(kind, str(data.get("message", "")).strip(), steps, motion)
 
 
 def validate(plan: Plan, world: World) -> list[str]:
@@ -126,7 +136,7 @@ def validate(plan: Plan, world: World) -> list[str]:
         if not plan.message:
             errs.append(f"a '{plan.kind}' answer needs a message for the user")
         return errs
-    if not plan.steps:
+    if not plan.steps and plan.motion is None:
         return ["a plan needs at least one step (or use kind 'answer'/'clarify'/'impossible')"]
     if len(plan.steps) > MAX_STEPS:
         errs.append(f"at most {MAX_STEPS} steps")

@@ -47,6 +47,8 @@ class FakeSkills:
     grasp_fails: set[str] = field(default_factory=set)       # fails once each
     calls: list[str] = field(default_factory=list)
     holding: dict[str, str] = field(default_factory=lambda: {"left": "", "right": ""})
+    motions_played: list[str] = field(default_factory=list)
+    express_results: list = field(default_factory=list)
 
     def __post_init__(self) -> None:
         self.resolver = PlaceResolver(TABLE)
@@ -66,7 +68,7 @@ class FakeSkills:
     @property
     def motions(self) -> list[str]:
         """Calls that act on objects (not the scan or social gestures)."""
-        return [c for c in self.calls if c != "refresh" and c.split("(")[0] not in ("wave", "nod", "shake_head", "scan", "home", "look_at")]
+        return [c for c in self.calls if c != "refresh" and c.split("(")[0] not in ("wave", "nod", "shake_head", "express", "scan", "home", "look_at")]
 
     def _wo(self, t: Thing) -> WorldObject:
         sx, sy, sz = t.size
@@ -83,6 +85,9 @@ class FakeSkills:
         s = step.skill
         if s in ("scan", "home", "look_at", "wave", "nod", "shake_head"):
             return StepOutcome(True)
+        if s == "express":
+            self.motions_played.append(step.motion)
+            return self.express_results.pop(0) if self.express_results else StepOutcome(True)
         if s == "release":
             for side, oid in self.holding.items():
                 if oid:

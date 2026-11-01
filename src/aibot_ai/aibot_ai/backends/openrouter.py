@@ -104,7 +104,9 @@ class OpenRouterBackend(LLMBackend, VLMBackend):
                         text += piece
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode(errors="replace")[:200]
-            raise CloudError(f"OpenRouter HTTP {exc.code}: {detail}", exc.code, exc.code in RETRYABLE_STATUS) from exc
+            # a 402 for in-flight budget clears when another request finishes (a background label, say)
+            in_flight = exc.code == 402 and "in-flight" in detail
+            raise CloudError(f"OpenRouter HTTP {exc.code}: {detail}", exc.code, exc.code in RETRYABLE_STATUS or in_flight) from exc
         except (socket.timeout, TimeoutError) as exc:
             raise CloudError(f"OpenRouter timed out after {time.monotonic() - t0:.1f} s") from exc
         except (urllib.error.URLError, OSError) as exc:
@@ -128,6 +130,13 @@ class OpenRouterBackend(LLMBackend, VLMBackend):
         url = "data:image/jpeg;base64," + base64.b64encode(image_jpeg).decode()
         return self._chat([{"role": "user", "content": [{"type": "text", "text": prompt},
                                                         {"type": "image_url", "image_url": {"url": url}}]}], schema)
+
+    def cloud_ready(self) -> bool:
+        return self.available
+
+    @property
+    def last_backend(self) -> str:
+        return "cloud"
 
     def describe_last(self) -> str:
         return f"cloud {self.last_stats.get('wall_s', 0.0):.1f} s"

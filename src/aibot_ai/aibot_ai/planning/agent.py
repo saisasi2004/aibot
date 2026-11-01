@@ -22,7 +22,8 @@ from typing import Callable, Protocol
 
 from ..backends.base import BackendError, LLMBackend
 from ..skills.gestures import GESTURE_SKILLS, is_greeting
-from .plan import PLAN_SCHEMA, Plan, Step, World, ambiguous_mentions, parse_plan, validate
+from .gestures import GestureLibrary, intent_key
+from .plan import LOCAL_PLAN_SCHEMA, PLAN_SCHEMA, Plan, Step, World, ambiguous_mentions, parse_plan, validate
 from .prompt import build_messages
 from .verify import check_for, is_scene_question
 
@@ -72,6 +73,8 @@ class Report:
     verifications: list = field(default_factory=list)   # (question, expected, answer, reason)
     disagreements: list = field(default_factory=list)   # questions the camera model answered against geometry
     camera_s: float = 0.0              # time spent waiting for scene descriptions
+    motion_source: str = ""            # generated | cache | seed | "" (none)
+    motion_errors: list = field(default_factory=list)   # validator errors, for the rejection rate
     backend: str = ""                  # who answered the last LLM call: "cloud 1.2 s", "local 6.8 s (cloud down)"
     errors: list[str] = field(default_factory=list)
 
@@ -81,8 +84,10 @@ class Report:
 
 class PlannerAgent:
     def __init__(self, llm: LLMBackend, runner: SkillRunner, say: Callable[[str], None],
-                 config: AgentConfig | None = None, log: Callable[[str], None] | None = None) -> None:
+                 config: AgentConfig | None = None, log: Callable[[str], None] | None = None,
+                 library: GestureLibrary | None = None) -> None:
         self.llm, self.runner, self.say = llm, runner, say
+        self.library = library or GestureLibrary()
         self.cfg = config or AgentConfig()
         self.log = log or (lambda _m: None)
         self.cancelled = threading.Event()
@@ -96,6 +101,9 @@ class PlannerAgent:
         self.cancelled.set()
 
     # ------------------------------------------------------------------ LLM
+    def _cloud_ready(self) -> bool:
+        return getattr(self.llm, "cloud_ready", lambda: False)()
+
     def _camera_words(self, rep: Report) -> str:
         """A scene description within its time budget ("" if there is no camera model or no answer)."""
         describe = getattr(self.runner, "describe", None)
@@ -126,12 +134,18 @@ class PlannerAgent:
         return t
 
     def _plan(self, request: str, world: World, feedback: str, rep: Report, camera: str = "") -> tuple[Plan | None, list[str]]:
-        msgs = build_messages(request, world, self.history[-self.cfg.history_turns:], feedback, camera)
+        history = self.history[-self.cfg.history_turns:]
+        gestures = self._cloud_ready()
+        msgs = build_messages(request, world, history, feedback, camera, gestures=gestures)
+        short = build_messages(request, world, history, feedback, camera) if gestures else None
         plan, errs = None, ["no answer"]
         for attempt in range(1 + self.cfg.repair_attempts):
             t0 = time.monotonic()
             try:
-                data = self.llm.generate(msgs, PLAN_SCHEMA)
+                if short is not None and hasattr(self.llm, "members"):
+                    data = self.llm.generate(msgs, PLAN_SCHEMA, local=(short, LOCAL_PLAN_SCHEMA))
+                else:
+                    data = self.llm.generate(msgs, PLAN_SCHEMA)
             except BackendError as exc:
                 rep.llm_calls += 1
                 rep.llm_s += time.monotonic() - t0
@@ -171,20 +185,73 @@ class PlannerAgent:
             self.history.append(f"user: {text} -> {rep.kind or 'error'}: {rep.reply[:120]}")
         return rep
 
-    def _reply(self, rep: Report, kind: str, message: str, success: bool, say: bool = True) -> None:
+    def _reply(self, rep: Report, kind: str, message: str, success: bool, say: bool = True, motion: dict | None = None) -> None:
         rep.kind, rep.reply, rep.success = kind, message, success
         if say:
             self.say(message)
-        # every reply gets a visible reaction (nod / head shake), unless it was stopped; a plan that
-        # already gestured (e.g. a wave) needs none, and a greeting answered with words only still
-        # gets a wave (the model decides the words, not whether the robot reacts)
+        # every reply gets a visible reaction, unless it was stopped: the motion the LLM designed if
+        # there is a valid one, else the library's fallback gesture. A plan that already gestured needs none.
+        if self.cancelled.is_set():
+            return
+        if motion is not None and self._express(rep, motion, message):
+            return
         gesture = "wave" if kind == "answer" and is_greeting(rep.request) else self.gestures.get(kind)
         gestured = any(s in GESTURE_SKILLS for p in rep.plans[-1:] for s in (x.split("(")[0] for x in p))
-        if gesture and not self.cancelled.is_set() and not (kind == "plan" and gestured):
+        if gesture and not (kind == "plan" and gestured):
             out = self.runner.run(Step(gesture), self.cancelled)
             rep.executed.append((f"{gesture}()", out.reason_code))
+            rep.motion_source = "seed"
+
+    def _play(self, rep: Report, motion: dict) -> StepOutcome:
+        out = self.runner.run(Step("express", motion=json.dumps(motion)), self.cancelled)
+        rep.executed.append((f"express({motion.get('intent', '')})", out.reason_code))
+        return out
+
+    def _express(self, rep: Report, motion: dict, message: str) -> bool:
+        """Play a generated motion; on rejection ask the LLM to fix it once. True if it played."""
+        out = self._play(rep, motion)
+        if out.reason_code == "INVALID":
+            rep.motion_errors.append(out.message)
+            self.log(f"motion rejected: {out.message}")
+            motion = self._repair_motion(rep, motion, out.message)
+            if motion is None:
+                return False
+            out = self._play(rep, motion)
+            if out.reason_code == "INVALID":
+                rep.motion_errors.append(out.message)
+                self.log(f"repaired motion rejected: {out.message}")
+                return False
+        if not out.success:
+            return False
+        rep.motion_source = "generated"
+        self.library.store(intent_key(rep.request), motion, message)
+        return True
+
+    def _repair_motion(self, rep: Report, motion: dict, errors: str) -> dict | None:
+        msgs = build_messages(rep.request, self.runner.world(), [], gestures=True) + [
+            {"role": "assistant", "content": json.dumps({"kind": "answer", "message": "", "steps": [], "motion": motion})},
+            {"role": "user", "content": f"That motion was rejected: {errors}. Reply with a corrected JSON object."}]
+        t0 = time.monotonic()
+        try:
+            plan = parse_plan(self.llm.generate(msgs, PLAN_SCHEMA))
+        except (BackendError, ValueError, TypeError) as exc:
+            self.log(f"motion repair failed: {exc}")
+            return None
+        finally:
+            rep.llm_calls += 1
+            rep.llm_s += time.monotonic() - t0
+        return plan.motion if getattr(self.llm, "last_backend", "cloud") == "cloud" else None
 
     def _handle(self, request: str, rep: Report, t0: float) -> None:
+        hit = self.library.get(intent_key(rep.request))
+        if hit is not None:                 # a gesture that worked before: instant, no LLM call, no cost
+            rep.kind, rep.reply, rep.success, rep.backend = "answer", hit.get("message", ""), True, "cache"
+            self.say(rep.reply)
+            rep.first_motion_s = time.monotonic() - t0
+            if self._play(rep, hit["motion"]).success:
+                rep.motion_source = "cache"
+                return
+            self.log("cached gesture did not play; asking the model")
         world = self.runner.world()
         # a greeting needs no view of the table: react now and keep the scan for the first real task
         # (after a switch from mimic it cost 20-50 s before the wave could start)
@@ -204,11 +271,17 @@ class PlannerAgent:
                 rep.errors += errs
                 return self._reply(rep, "error", "Sorry, I could not make a workable plan: " + "; ".join(errs[:3]), False)
             rep.plans.append([s.text() for s in plan.steps])
+            # generated motions only from the model that was given the body sheet
+            motion = plan.motion if getattr(self.llm, "last_backend", "cloud") == "cloud" else None
+            if rep.first_motion_s is None and motion is not None:
+                rep.first_motion_s = time.monotonic() - t0
             if plan.kind == "clarify":
                 self.pending = (request, plan.message)
-                return self._reply(rep, "clarify", plan.message, True)
+                return self._reply(rep, "clarify", plan.message, True, motion=motion)
             if plan.kind in ("impossible", "answer"):
-                return self._reply(rep, plan.kind, plan.message, plan.kind == "answer")
+                return self._reply(rep, plan.kind, plan.message, plan.kind == "answer", motion=motion)
+            if not plan.steps:                  # a plan that is only a motion
+                return self._reply(rep, "answer", plan.message, True, motion=motion)
             amb = ambiguous_mentions(rep.request, world, plan) if not feedback else []
             if amb:
                 options = " or ".join(f"{o.id} at ({o.x * 100:.0f}, {o.y * 100:.0f})" for o in amb[0])

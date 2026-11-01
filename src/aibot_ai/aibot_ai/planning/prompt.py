@@ -57,6 +57,38 @@ EXAMPLES: list[tuple[str, dict]] = [
 ]
 
 
+BODY_SHEET = """
+
+GESTURES. For greetings and any social or expressive request (wave, bow, thumbs up, happy, point at something) design
+the movement yourself in "motion" and use kind "answer" with no steps; "message" stays the words.
+motion = {"intent": short name, "keyframes": [{"t": seconds from the start, "joints": [{"name": JOINT, "angle": rad}],
+"right_hand": HAND, "left_hand": HAND}], "repeat": {"from": i, "to": j, "count": n}, "point_at": {"object": ID, "arm": "left"|"right"}}.
+At most 12 keyframes and 10 s; keyframes at least 0.3 s apart. Only list joints that change. The robot returns to rest by itself.
+Rest pose: every angle 0, arms hanging. HAND = open, half, fist, point, thumb_up. A table is in front of the robot: keep arms out to the side or high until above it.
+JOINT (limits in rad; right arm given, for the left arm use left_* and flip the sign of shoulder_roll, arm_yaw, elbow_yaw, wrist_roll):
+ right_shoulder_pitch_joint -2.77..2.77: negative raises the arm forward.
+ right_shoulder_roll_joint -1.81..0.22: negative raises the arm out to the side.
+ right_arm_yaw_joint -2.77..2.77: twists the upper arm. right_elbow_pitch_joint -2.34..0: negative bends the elbow.
+ right_elbow_yaw_joint -2.6..2.6: swings the bent forearm. right_wrist_pitch_joint -1.55..1.55, right_wrist_roll_joint -1.73..1.73.
+ waist_pitch_joint -0.40..0.07: negative leans forward. waist_yaw_joint -0.6..0.6: negative turns right. neck_pitch_joint -0.15..0.52: positive looks down. neck_yaw_joint -1.55..1.55: positive looks left.
+For pointing at an object use point_at, not joint angles. Do not move an arm or the waist while HANDS shows an object in that hand."""
+
+MOTION_EXAMPLES: list[tuple[str, dict]] = [
+    ("WORLD:\nblue_cube_1: blue cube at (42, 0)\nHANDS: left=empty right=empty\n\nREQUEST: hi",
+     {"kind": "answer", "message": "Hi there!", "steps": [], "motion": {"intent": "greet", "keyframes": [
+         {"t": 1.5, "joints": [{"name": "right_shoulder_pitch_joint", "angle": -0.4}, {"name": "right_shoulder_roll_joint", "angle": -1.6},
+                               {"name": "right_arm_yaw_joint", "angle": -1.0}, {"name": "right_elbow_pitch_joint", "angle": -1.6}], "right_hand": "open"},
+         {"t": 2.1, "joints": [{"name": "right_elbow_yaw_joint", "angle": 0.5}]},
+         {"t": 2.7, "joints": [{"name": "right_elbow_yaw_joint", "angle": -0.5}]}], "repeat": {"from": 1, "to": 2, "count": 1}}}),
+    ("WORLD:\nblue_cube_1: blue cube at (42, 0)\nHANDS: left=empty right=empty\n\nREQUEST: bow to me",
+     {"kind": "answer", "message": "At your service.", "steps": [], "motion": {"intent": "bow", "keyframes": [
+         {"t": 1.2, "joints": [{"name": "waist_pitch_joint", "angle": -0.35}, {"name": "neck_pitch_joint", "angle": 0.4}]},
+         {"t": 2.2, "joints": [{"name": "waist_pitch_joint", "angle": -0.35}]}]}}),
+    ("WORLD:\nblue_cube_1: blue cube at (42, 0)\nHANDS: left=empty right=empty\n\nREQUEST: point at the blue cube",
+     {"kind": "answer", "message": "That one.", "steps": [], "motion": {"intent": "point", "point_at": {"object": "blue_cube_1", "arm": "right"}}}),
+]
+
+
 def world_text(world: World) -> str:
     lines = []
     for o in world.objects:
@@ -73,9 +105,12 @@ def world_text(world: World) -> str:
     return "WORLD:\n" + ("\n".join(lines) if lines else "(nothing seen)") + f"\nHANDS: {hands}"
 
 
-def build_messages(request: str, world: World, history: list[str], feedback: str = "", camera: str = "") -> list[dict]:
-    msgs = [{"role": "system", "content": SYSTEM}]
-    for user, answer in EXAMPLES:
+def build_messages(request: str, world: World, history: list[str], feedback: str = "", camera: str = "",
+                   gestures: bool = False) -> list[dict]:
+    """gestures: add the body cheat sheet (the cloud model designs motions; a small local model would
+    only spend time on it, and uses the library's gestures instead)."""
+    msgs = [{"role": "system", "content": SYSTEM + BODY_SHEET if gestures else SYSTEM}]
+    for user, answer in EXAMPLES[1:] + MOTION_EXAMPLES if gestures else EXAMPLES:
         msgs += [{"role": "user", "content": user}, {"role": "assistant", "content": json.dumps(answer)}]
     parts = [world_text(world)]
     if history:

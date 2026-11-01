@@ -105,6 +105,10 @@ class OllamaBackend(LLMBackend, VLMBackend):
     def generate(self, messages: list[dict], schema: dict | None = None) -> dict:
         return self._chat(messages, schema)
 
+    @property
+    def last_backend(self) -> str:
+        return "local"
+
     def describe_last(self) -> str:
         return f"local {self.last_stats.get('wall_s', 0.0):.1f} s"
 

@@ -175,6 +175,20 @@ def test_breaker_skips_cloud_then_probes_and_recovers():
     assert h.generate([]) == {"k": 1} and h.members[0].breaker.opened_at is None   # probe worked
 
 
+def test_fallback_gets_the_short_prompt():
+    seen = {}
+
+    class Rec(Fake):
+        def generate(self, messages, schema=None):
+            seen[self.kind] = (messages, schema)
+            return self._next()
+
+    now = [0.0]
+    h = hybrid(Rec("cloud", [CloudError("x")]), Rec("local", [{"k": 2}]), now)
+    assert h.generate(["long"], {"a": 1}, local=(["short"], {"b": 2})) == {"k": 2}
+    assert seen["cloud"] == (["long"], {"a": 1}) and seen["local"] == (["short"], {"b": 2})
+
+
 def test_breaker_success_resets_the_count():
     b = CircuitBreaker(2, 60.0, clock=lambda: 0.0)
     b.failure(), b.success(), b.failure()

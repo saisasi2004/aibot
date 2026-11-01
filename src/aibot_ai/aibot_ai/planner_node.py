@@ -34,6 +34,7 @@ from aibot_teleop.utils.mode_gate import ModeGate
 from .backends.base import BackendError
 from .backends.factory import build
 from .backends.secrets import api_key
+from .planning.gestures import GestureLibrary
 from .planning.agent import AgentConfig, PlannerAgent, Report, StepOutcome
 from .planning.plan import Step, World, WorldItem
 
@@ -90,6 +91,8 @@ class RosSkillRunner:
         if step.skill == "place":
             return ExecuteSkill.Goal(skill="place", object_id=step.object, place_target=PlaceTarget(
                 relation=step.relation, reference_id=step.target, region=step.region))
+        if step.skill == "express":
+            return ExecuteSkill.Goal(skill="express", motion_json=step.motion)
         if step.skill == "look_at":
             return ExecuteSkill.Goal(skill="look_at", object_id=step.object, text=step.region)
         return ExecuteSkill.Goal(skill=step.skill, object_id=step.object)
@@ -152,7 +155,9 @@ class PlannerNode(Node):
         cfg = AgentConfig(p("max_replans", 2).value, p("repair_attempts", 1).value, p("history_turns", 3).value,
                           p("vlm_check.verify", True).value, p("vlm_check.replan_on_disagree", False).value,
                           p("vlm_check.describe_timeout", 10.0).value)
-        self.agent = PlannerAgent(self.llm, self.runner, self.say, cfg, lambda m: self.get_logger().info(m))
+        library = GestureLibrary(p("gestures.library", "~/.cache/aibot/gestures.json").value)
+        self.agent = PlannerAgent(self.llm, self.runner, self.say, cfg, lambda m: self.get_logger().info(m), library)
+        self.create_service(Trigger, "/aibot/planner/clear_gestures", self._srv_clear_gestures, callback_group=self.cb)
         self.gate = ModeGate(self, "ai", True, self._on_mode_change)
         self._busy = threading.Lock()
         self.create_subscription(String, "/aibot/chat/user", self._on_user, 10, callback_group=self.cb)
@@ -200,6 +205,10 @@ class PlannerNode(Node):
         self.agent.stale = True           # mimic moved the head and arms: look at the table again first
         if self.llm_ok:
             threading.Thread(target=self._warm, daemon=True).start()
+
+    def _srv_clear_gestures(self, _req: Trigger.Request, res: Trigger.Response) -> Trigger.Response:
+        res.success, res.message = True, f"forgot {self.agent.library.clear()} cached gestures"
+        return res
 
     def _srv_cancel(self, _req: Trigger.Request, res: Trigger.Response) -> Trigger.Response:
         self.agent.cancel()

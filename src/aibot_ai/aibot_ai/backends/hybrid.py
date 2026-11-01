@@ -90,8 +90,14 @@ class HybridBackend(LLMBackend, VLMBackend):
                 return out
         raise last if last is not None else BackendError("no model backend available: " + ", ".join(skipped))
 
-    def generate(self, messages: list[dict], schema: dict | None = None) -> dict:
-        return self._run(lambda b: b.generate(messages, schema))
+    def generate(self, messages: list[dict], schema: dict | None = None, local: tuple[list[dict], dict | None] | None = None) -> dict:
+        """local: a shorter (messages, schema) for local models: a fallback must stay quick, and the
+        body sheet for designing gestures cost a small local model 76 s on this CPU."""
+        def call(b):
+            if local is not None and getattr(b, "kind", "") == "local":
+                return b.generate(*local)
+            return b.generate(messages, schema)
+        return self._run(call)
 
     def ask(self, image_jpeg: bytes, prompt: str, schema: dict | None = None, source: str = "") -> dict:
         check_image_source(source)
@@ -99,6 +105,11 @@ class HybridBackend(LLMBackend, VLMBackend):
 
     def describe_last(self) -> str:
         return self.last_label
+
+    def cloud_ready(self) -> bool:
+        """The next call will go to the cloud first (key present, breaker not open)."""
+        return any(getattr(m.backend, "kind", "") == "cloud" and getattr(m.backend, "available", True) and m.breaker.allow()
+                   for m in self.members)
 
     def check(self) -> None:
         """Startup check: at least one member reachable. Cloud is 'available' if the key exists."""

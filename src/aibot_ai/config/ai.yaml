@@ -61,6 +61,10 @@ skill_server_node:
       wave_cycles: 2
       nod_amplitude: 0.25        # rad neck pitch each way (the swing is centred to fit the limits)
       shake_amplitude: 0.3       # rad neck yaw
+      max_keyframes: 12          # limits of a generated motion (motion/expressive.py)
+      max_expanded: 30           # keyframes after repeats
+      max_time: 10.0             # s of described motion; speed limits may stretch it
+      point_height: 0.15         # m above an object for point_at
     look_at_max_error: 0.35      # rad, target counts as in view (vertical half-FOV ~0.45 rad)
     # Home pose per controller group (controller joint order). Head: look down at the table.
     home:
@@ -143,6 +147,8 @@ planner_node:
       verify: true               # ask after pick/place, in the background
       replan_on_disagree: false  # the cloud VLM measured a "yes" bias: report only
       describe_timeout: 10.0     # s for a scene description on failures and scene questions
+    gestures:
+      library: ~/.cache/aibot/gestures.json   # generated motions that worked; clear with /aibot/planner/clear_gestures
     max_replans: 2               # after a failed step: re-plan with the failure as feedback
     repair_attempts: 1           # invalid plan: one retry with the validator's errors
     history_turns: 3             # earlier exchanges in the prompt ("put it back")

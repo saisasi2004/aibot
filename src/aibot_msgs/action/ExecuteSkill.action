@@ -1,9 +1,11 @@
 # One robot skill, executed by skill_server_node (/aibot/skills/execute).
-# skill: scan | look_at | home | locate | pick | place | place_in | move_aside | open_hand | release
+# skill: scan | look_at | home | locate | pick | place | place_in | move_aside | open_hand | release |
+#        wave | nod | shake_head | express
 string skill
 string object_id                    # pick, move_aside, look_at: the object; place: the held object
                                     # (optional); place_in: the container
 string text                         # locate(text), look_at a named region
+string motion_json                  # express: declarative motion (aibot_ai/motion/expressive.py)
 aibot_msgs/PlaceTarget place_target # place
 string side                         # "left" | "right" | "" (choose automatically)
 float32 timeout                     # s; 0 = the skill's default

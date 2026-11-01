@@ -13,7 +13,7 @@ from fake_world import FakeSkills, scene  # noqa: E402
 
 from aibot_ai.backends.base import BackendError, LLMBackend  # noqa: E402
 from aibot_ai.planning.agent import PlannerAgent  # noqa: E402
-from aibot_ai.planning.plan import PLAN_SCHEMA, Plan, Step, parse_plan, validate  # noqa: E402
+from aibot_ai.planning.plan import LOCAL_PLAN_SCHEMA, PLAN_SCHEMA, Plan, Step, parse_plan, validate  # noqa: E402
 from aibot_ai.planning.prompt import build_messages, world_text  # noqa: E402
 
 
@@ -24,7 +24,7 @@ class ScriptedLLM(LLMBackend):
         self.answers, self.prompts = list(answers), []
 
     def generate(self, messages, schema=None):
-        assert schema is PLAN_SCHEMA
+        assert schema is PLAN_SCHEMA or schema is LOCAL_PLAN_SCHEMA
         self.prompts.append(messages[-1]["content"])
         if not self.answers:
             raise BackendError("no more scripted answers")
