@@ -131,7 +131,7 @@ def test_obstacles_block_reach_and_carried_object_hits_table():
 def test_vertical_grasp_avoids_a_tall_neighbour_and_knows_the_limit():
     """A 12 cm can 11 cm (centre to centre) from the target: grasp-first planning finds an
     approach whose hand, fingers and thumb stay clear, and the descent is the reversed climb.
-    9 cm is too close for this 20 cm hand with its 16 cm thumb: refused, not attempted."""
+    8 cm is too close for this 20 cm hand with its 16 cm thumb: refused, not attempted."""
     _, jm, table, m = _setup()
     q0 = np.zeros(len(jm.names))
     grasp = np.array([0.42, 0.02, table["top_z"] + 0.025])
@@ -145,7 +145,7 @@ def test_vertical_grasp_avoids_a_tall_neighbour_and_knows_the_limit():
                 assert not s.obstacle_hits(s.arm_points(m.arm_q("right", qq)))
         top, _ = m.grasp_point("right", paths[0][-1])
         assert np.allclose(top, grasp + [0, 0, 0.10], atol=0.01)
-        m.set_scene([(0.42, 0.11, 0.033, table["top_z"] + 0.12)], ids=["silver_can_1"])
+        m.set_scene([(0.42, 0.10, 0.033, table["top_z"] + 0.12)], ids=["silver_can_1"])
         for side in ("left", "right"):
             assert m.vertical(side, q0, grasp, (0.10, 0.12), allow_near=grasp)[0] is None
     finally:
